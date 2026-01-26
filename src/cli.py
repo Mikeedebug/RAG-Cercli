@@ -14,6 +14,7 @@ from .config import get_settings
 from .document_processor import DocumentProcessor
 from .embeddings import get_embedding_provider
 from .hubspot_client import HubSpotClient
+from .hubspot_crm import HubSpotCRMClient
 from .rag_pipeline import RAGPipeline, StreamingRAGPipeline
 from .vector_store import VectorStore
 
@@ -124,6 +125,95 @@ def ingest(limit: int, clear: bool):
     except Exception as e:
         console.print(f"[red]Error during ingestion: {e}[/red]")
         logger.exception("Ingestion failed")
+        sys.exit(1)
+
+
+@cli.command("ingest-crm")
+@click.option("--leads-limit", "-l", default=500, help="Maximum number of leads to fetch")
+@click.option("--deals-limit", "-d", default=500, help="Maximum number of deals to fetch")
+@click.option("--clear", "-c", is_flag=True, help="Clear existing data before ingestion")
+@click.option("--no-history", is_flag=True, help="Skip fetching stage history (faster)")
+def ingest_crm(leads_limit: int, deals_limit: int, clear: bool, no_history: bool):
+    """Ingest HubSpot CRM data (Leads and Deals) into the vector store."""
+    try:
+        settings, embedding_provider, vector_store = get_components()
+
+        if clear:
+            console.print("[yellow]Clearing existing data...[/yellow]")
+            vector_store.clear()
+
+        # Initialize HubSpot CRM client
+        crm_client = HubSpotCRMClient(settings.hubspot_access_token)
+
+        # Initialize document processor
+        doc_processor = DocumentProcessor(
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
+        )
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            # Fetch leads
+            task = progress.add_task("Fetching leads from HubSpot...", total=None)
+            leads = crm_client.get_leads(
+                limit=leads_limit,
+                include_stage_history=not no_history,
+            )
+            progress.update(task, completed=True)
+            console.print(f"[green]Fetched {len(leads)} leads[/green]")
+
+            # Fetch deals
+            task = progress.add_task("Fetching deals from HubSpot...", total=None)
+            deals = crm_client.get_deals(
+                limit=deals_limit,
+                include_stage_history=not no_history,
+            )
+            progress.update(task, completed=True)
+            console.print(f"[green]Fetched {len(deals)} deals[/green]")
+
+            if not leads and not deals:
+                console.print("[red]No CRM data found in HubSpot.[/red]")
+                return
+
+            # Process CRM data into chunks
+            task = progress.add_task("Processing CRM data into chunks...", total=None)
+            chunks = doc_processor.process_crm_data(leads, deals)
+            progress.update(task, completed=True)
+            console.print(f"[green]Created {len(chunks)} chunks[/green]")
+
+            # Add chunks to vector store
+            task = progress.add_task("Adding chunks to vector store...", total=None)
+            added = vector_store.add_chunks(chunks)
+            progress.update(task, completed=True)
+            console.print(f"[green]Added {added} chunks to vector store[/green]")
+
+        # Show stats
+        stats = vector_store.get_stats()
+
+        # Create summary table
+        table = Table(title="CRM Ingestion Summary")
+        table.add_column("Data Type", style="cyan")
+        table.add_column("Count", style="green")
+
+        table.add_row("Leads", str(len(leads)))
+        table.add_row("Deals", str(len(deals)))
+        table.add_row("Total Chunks", str(stats['total_chunks']))
+
+        console.print(table)
+
+        console.print(Panel(
+            f"Collection: {stats['collection_name']}\n"
+            f"Storage: {stats['persist_directory']}",
+            title="Ingestion Complete",
+            border_style="green",
+        ))
+
+    except Exception as e:
+        console.print(f"[red]Error during CRM ingestion: {e}[/red]")
+        logger.exception("CRM ingestion failed")
         sys.exit(1)
 
 

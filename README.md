@@ -4,7 +4,11 @@ A Retrieval-Augmented Generation (RAG) system for querying your HubSpot knowledg
 
 ## Features
 
-- **HubSpot Integration**: Automatically fetches articles from HubSpot CMS, knowledgebase, and blog posts
+- **HubSpot CRM Integration**: Fetches Leads and Deals with full pipeline stage history
+  - Track date entered/exited each pipeline stage
+  - Calculate cumulative time per stage
+  - Weighted deal amounts based on stage probability
+- **HubSpot CMS Integration**: Fetches articles from knowledgebase and blog posts
 - **Smart Chunking**: Intelligently splits documents with overlap for better context preservation
 - **Multiple Embedding Options**:
   - OpenAI embeddings (text-embedding-3-small, text-embedding-3-large)
@@ -64,9 +68,31 @@ LLM_MODEL=gpt-4o-mini
 
 ## Usage
 
-### 1. Ingest Articles
+### 1. Ingest CRM Data (Leads & Deals)
 
-First, fetch and process your HubSpot content:
+Fetch and process your HubSpot CRM data with pipeline stage history:
+
+```bash
+# Ingest leads and deals with full stage history
+python -m src.cli ingest-crm
+
+# Specify limits
+python -m src.cli ingest-crm --leads-limit 100 --deals-limit 200
+
+# Skip stage history for faster ingestion
+python -m src.cli ingest-crm --no-history
+
+# Clear existing data and re-ingest
+python -m src.cli ingest-crm --clear
+```
+
+This will fetch:
+- **Leads**: Name, lifecycle stage, date entered/exited each stage
+- **Deals**: Name, weighted amount, pipeline stages, cumulative time per stage
+
+### 2. Ingest CMS Articles (Optional)
+
+If you also have knowledgebase articles or blog posts:
 
 ```bash
 # Ingest up to 500 articles
@@ -79,22 +105,25 @@ python -m src.cli ingest --limit 100
 python -m src.cli ingest --clear
 ```
 
-### 2. Query the Knowledgebase
+### 3. Query Your Data
 
-Ask questions about your content:
+Ask questions about your leads, deals, and content:
 
 ```bash
-# Single question
-python -m src.cli query "How do I reset my password?"
+# Ask about deals
+python -m src.cli query "Which deals have been in negotiation stage the longest?"
+
+# Ask about leads
+python -m src.cli query "Show me leads that moved from MQL to SQL this month"
 
 # With streaming response
-python -m src.cli query "What are the pricing plans?" --stream
+python -m src.cli query "What is the average time deals spend in each stage?" --stream
 
 # Show source documents
-python -m src.cli query "How to contact support?" --show-sources
+python -m src.cli query "Which deals have the highest weighted amount?" --show-sources
 ```
 
-### 3. Interactive Chat
+### 4. Interactive Chat
 
 Start an interactive chat session:
 
@@ -102,7 +131,7 @@ Start an interactive chat session:
 python -m src.cli chat
 ```
 
-### 4. Other Commands
+### 5. Other Commands
 
 ```bash
 # View vector store statistics
@@ -144,22 +173,29 @@ All settings can be configured via environment variables:
 3. Click **Create a private app**
 4. Give it a name (e.g., "RAG System")
 5. Under **Scopes**, enable:
-   - `content` (read) - for CMS content
-   - `cms.knowledge_base.articles.read` - for knowledgebase
+   - `crm.objects.contacts.read` - for leads/contacts
+   - `crm.objects.deals.read` - for deals
+   - `crm.schemas.deals.read` - for deal pipelines
+   - `content` (read) - for CMS content (optional)
+   - `cms.knowledge_base.articles.read` - for knowledgebase (optional)
 6. Click **Create app**
 7. Copy the access token to your `.env` file
 
 ## Architecture
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│   HubSpot API   │────▶│ Document         │────▶│   ChromaDB      │
-│   (Articles)    │     │ Processor        │     │ (Vector Store)  │
-└─────────────────┘     │ (Chunking)       │     └────────┬────────┘
-                        └──────────────────┘              │
-                                                          │
-┌─────────────────┐     ┌──────────────────┐              │
-│   User Query    │────▶│ RAG Pipeline     │◀─────────────┘
+┌─────────────────┐
+│  HubSpot CRM    │
+│  (Leads/Deals)  │─────┐
+└─────────────────┘     │     ┌──────────────────┐     ┌─────────────────┐
+                        ├────▶│ Document         │────▶│   ChromaDB      │
+┌─────────────────┐     │     │ Processor        │     │ (Vector Store)  │
+│  HubSpot CMS    │─────┘     │ (Chunking)       │     └────────┬────────┘
+│  (Articles)     │           └──────────────────┘              │
+└─────────────────┘                                             │
+                                                                │
+┌─────────────────┐     ┌──────────────────┐                    │
+│   User Query    │────▶│ RAG Pipeline     │◀───────────────────┘
 │                 │     │ (Retrieval +     │
 └─────────────────┘     │  Generation)     │
                         └────────┬─────────┘
@@ -180,7 +216,8 @@ RAG-Cercli/
 │   ├── config.py           # Configuration management
 │   ├── document_processor.py # Chunking and text processing
 │   ├── embeddings.py       # Embedding providers
-│   ├── hubspot_client.py   # HubSpot API client
+│   ├── hubspot_client.py   # HubSpot CMS API client
+│   ├── hubspot_crm.py      # HubSpot CRM client (Leads & Deals)
 │   ├── rag_pipeline.py     # RAG query pipeline
 │   └── vector_store.py     # ChromaDB vector store
 ├── data/                   # Vector store data (gitignored)

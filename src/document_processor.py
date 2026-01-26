@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import html2text
 
 from .hubspot_client import KnowledgeArticle
+from .hubspot_crm import Lead, Deal
 
 logger = logging.getLogger(__name__)
 
@@ -387,5 +388,146 @@ class DocumentProcessor:
 
         logger.info(
             f"Processed {len(articles)} articles into {len(all_chunks)} chunks"
+        )
+        return all_chunks
+
+    def process_lead(self, lead: Lead) -> list[DocumentChunk]:
+        """Process a lead into chunks.
+
+        Args:
+            lead: Lead object to process.
+
+        Returns:
+            List of DocumentChunk objects.
+        """
+        # Convert lead to searchable text
+        text = lead.to_text()
+
+        # Create metadata
+        metadata = {
+            "article_id": f"lead_{lead.id}",
+            "type": "lead",
+            "title": f"Lead: {lead.name}",
+            "lead_id": lead.id,
+            "lead_name": lead.name,
+            "email": lead.email,
+            "lifecycle_stage": lead.lifecycle_stage,
+            "lead_status": lead.lead_status,
+        }
+
+        # Remove None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
+        # Chunk the text (leads are usually small, might be single chunk)
+        chunks = self.chunk_text(text, metadata)
+
+        logger.debug(f"Processed lead {lead.id} into {len(chunks)} chunks")
+        return chunks
+
+    def process_leads(self, leads: list[Lead]) -> list[DocumentChunk]:
+        """Process multiple leads into chunks.
+
+        Args:
+            leads: List of Lead objects.
+
+        Returns:
+            List of all DocumentChunk objects.
+        """
+        all_chunks = []
+
+        for lead in leads:
+            try:
+                chunks = self.process_lead(lead)
+                all_chunks.extend(chunks)
+            except Exception as e:
+                logger.error(f"Failed to process lead {lead.id}: {e}")
+                continue
+
+        logger.info(f"Processed {len(leads)} leads into {len(all_chunks)} chunks")
+        return all_chunks
+
+    def process_deal(self, deal: Deal) -> list[DocumentChunk]:
+        """Process a deal into chunks.
+
+        Args:
+            deal: Deal object to process.
+
+        Returns:
+            List of DocumentChunk objects.
+        """
+        # Convert deal to searchable text
+        text = deal.to_text()
+
+        # Create metadata
+        metadata = {
+            "article_id": f"deal_{deal.id}",
+            "type": "deal",
+            "title": f"Deal: {deal.name}",
+            "deal_id": deal.id,
+            "deal_name": deal.name,
+            "amount": deal.amount,
+            "weighted_amount": deal.weighted_amount,
+            "deal_stage": deal.deal_stage,
+            "pipeline": deal.pipeline,
+        }
+
+        # Remove None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+
+        # Chunk the text
+        chunks = self.chunk_text(text, metadata)
+
+        logger.debug(f"Processed deal {deal.id} into {len(chunks)} chunks")
+        return chunks
+
+    def process_deals(self, deals: list[Deal]) -> list[DocumentChunk]:
+        """Process multiple deals into chunks.
+
+        Args:
+            deals: List of Deal objects.
+
+        Returns:
+            List of all DocumentChunk objects.
+        """
+        all_chunks = []
+
+        for deal in deals:
+            try:
+                chunks = self.process_deal(deal)
+                all_chunks.extend(chunks)
+            except Exception as e:
+                logger.error(f"Failed to process deal {deal.id}: {e}")
+                continue
+
+        logger.info(f"Processed {len(deals)} deals into {len(all_chunks)} chunks")
+        return all_chunks
+
+    def process_crm_data(
+        self,
+        leads: list[Lead],
+        deals: list[Deal],
+    ) -> list[DocumentChunk]:
+        """Process all CRM data into chunks.
+
+        Args:
+            leads: List of Lead objects.
+            deals: List of Deal objects.
+
+        Returns:
+            List of all DocumentChunk objects.
+        """
+        all_chunks = []
+
+        # Process leads
+        lead_chunks = self.process_leads(leads)
+        all_chunks.extend(lead_chunks)
+
+        # Process deals
+        deal_chunks = self.process_deals(deals)
+        all_chunks.extend(deal_chunks)
+
+        logger.info(
+            f"Processed CRM data: {len(leads)} leads + {len(deals)} deals = "
+            f"{len(all_chunks)} total chunks"
         )
         return all_chunks
