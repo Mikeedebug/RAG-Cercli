@@ -38,12 +38,19 @@ export class OnboardingService {
   async handleOfferAccepted(payload: {
     customerId: string;
     linkedAccountId: string;
-    canonical: CanonicalCandidate | CanonicalApplication;
+    candidateId: string;
+    applicationId: string | null;
     traceId: string;
   }) {
-    this.logger.log(`[${payload.traceId}] Starting onboarding for offer_accepted event`);
+    this.logger.log(`[${payload.traceId}] Starting onboarding for offer_accepted`);
     try {
-      await this.runOnboardingFlow(payload.customerId, payload.linkedAccountId, payload.canonical, payload.traceId);
+      await this.runOnboardingFlow(
+        payload.customerId,
+        payload.linkedAccountId,
+        payload.candidateId,
+        payload.applicationId,
+        payload.traceId,
+      );
     } catch (err) {
       this.logger.error(`[${payload.traceId}] Onboarding flow failed`, err);
     }
@@ -52,17 +59,10 @@ export class OnboardingService {
   async runOnboardingFlow(
     customerId: string,
     linkedAccountId: string,
-    triggerObject: CanonicalCandidate | CanonicalApplication,
+    candidateId: string,
+    applicationId: string | null,
     traceId: string,
   ) {
-    // Fetch candidate + application
-    let candidateId: string;
-    if ('candidate_id' in triggerObject) {
-      candidateId = triggerObject.candidate_id ?? '';
-    } else {
-      candidateId = triggerObject.id;
-    }
-
     const candidate = await this.prisma.canonicalCandidate.findFirst({
       where: { id: candidateId, customer_id: customerId },
     });
@@ -71,9 +71,13 @@ export class OnboardingService {
       return;
     }
 
-    const application = await this.prisma.canonicalApplication.findFirst({
-      where: { candidate_id: candidate.id, customer_id: customerId },
-    });
+    const application = applicationId
+      ? await this.prisma.canonicalApplication.findFirst({
+          where: { id: applicationId, customer_id: customerId },
+        })
+      : await this.prisma.canonicalApplication.findFirst({
+          where: { candidate_id: candidate.id, customer_id: customerId },
+        });
 
     // AI gap resolution
     const gapResult = await this.aiGapResolution.resolveGaps(

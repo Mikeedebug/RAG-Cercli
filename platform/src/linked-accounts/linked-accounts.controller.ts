@@ -27,8 +27,9 @@ export class LinkedAccountsController {
     @Query('vendor') vendor: string,
     @Query('code') code: string,
     @Query('redirect_uri') redirectUri: string,
+    @Query('state') state: string,
   ) {
-    return this.service.handleCallback(vendor, code, redirectUri);
+    return this.service.handleCallback(vendor, code, redirectUri, state);
   }
 
   @Get()

@@ -68,9 +68,9 @@ describe('HumaansConnector', () => {
       expect(vendor.startDate).toBe('2024-02-01');
     });
 
-    it('throws for unknown type', () => {
+    it('returns the canonical object unchanged for unknown types (pass-through)', () => {
       const canonical = connector.normalizePerson(rawPerson);
-      expect(() => connector.denormalize('unknown', canonical)).toThrow();
+      expect(connector.denormalize('unknown', canonical)).toBe(canonical);
     });
   });
 });

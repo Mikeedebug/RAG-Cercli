@@ -66,14 +66,14 @@ export class LinkedAccountsService {
     return { auth_url: authUrl };
   }
 
-  async handleCallback(vendor: string, code: string, redirectUri: string) {
+  async handleCallback(vendor: string, code: string, redirectUri: string, state: string) {
     const connector = this.connectorRegistry.get(vendor);
     const creds = await connector.exchangeCode(code, redirectUri);
     const encrypted = await this.secrets.encrypt(JSON.stringify(creds));
 
     const account = await this.prisma.linkedAccount.create({
       data: {
-        customer_id: 'unknown', // will be updated from state param in real impl
+        customer_id: state, // state param carries the customer_id from getAuthUrl
         vendor,
         category: connector.category,
         credentials_ref: encrypted,
@@ -82,6 +82,21 @@ export class LinkedAccountsService {
         webhook_ids: [],
       },
     });
+
+    // Auto-register webhooks
+    try {
+      const webhookIds = await connector.registerWebhooks({
+        ...account,
+        credentials_ref: (JSON.parse(await this.secrets.decrypt(encrypted)) as Credentials).access_token ?? '',
+        created_at: account.created_at,
+      });
+      await this.prisma.linkedAccount.update({
+        where: { id: account.id },
+        data: { webhook_ids: webhookIds },
+      });
+    } catch {
+      // non-fatal
+    }
 
     return account;
   }

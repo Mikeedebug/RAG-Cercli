@@ -28,9 +28,15 @@ export class WebhooksController {
     @InjectQueue(EVENT_QUEUE) private readonly eventQueue: Queue,
   ) {}
 
-  @Post(':vendor')
+  /**
+   * Webhook URL includes the linked_account_id so incoming events are routed
+   * to the correct tenant without ambiguity. Teamtailor webhook URL:
+   *   POST /webhooks/teamtailor/:linked_account_id
+   */
+  @Post(':vendor/:linked_account_id')
   async inbound(
     @Param('vendor') vendor: string,
+    @Param('linked_account_id') linkedAccountId: string,
     @Headers() headers: Record<string, string>,
     @Body() body: unknown,
     @Req() req: RawBodyRequest<Request>,
@@ -52,13 +58,12 @@ export class WebhooksController {
 
     const rawEvent = connector.parseWebhook(rawReq);
 
-    // Find linked account by vendor and customer
     const linkedAccount = await this.prisma.linkedAccount.findFirst({
-      where: { vendor, status: 'active' },
+      where: { id: linkedAccountId, vendor, status: 'active' },
     });
 
     if (!linkedAccount) {
-      this.logger.warn(`[${traceId}] No active linked account found for vendor ${vendor}`);
+      this.logger.warn(`[${traceId}] No active linked account: ${linkedAccountId}`);
       return { received: true, traceId };
     }
 

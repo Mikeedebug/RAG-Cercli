@@ -167,7 +167,8 @@ describe('Flagship Onboarding Flow', () => {
       await onboardingService.runOnboardingFlow(
         CUSTOMER_ID,
         LINKED_ACCOUNT_ID,
-        mockApplication as never,
+        'cand-1',
+        'app-1',
         'trace-1',
       );
 
@@ -179,46 +180,22 @@ describe('Flagship Onboarding Flow', () => {
     });
 
     it('generates RTW checklist after creating employee', async () => {
-      await onboardingService.runOnboardingFlow(
-        CUSTOMER_ID,
-        LINKED_ACCOUNT_ID,
-        mockApplication as never,
-        'trace-2',
-      );
-
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-2');
       expect(mockPrisma.rightToWorkChecklist.create).toHaveBeenCalledTimes(1);
     });
 
     it('writes employee to Humaans HRIS', async () => {
-      await onboardingService.runOnboardingFlow(
-        CUSTOMER_ID,
-        LINKED_ACCOUNT_ID,
-        mockApplication as never,
-        'trace-3',
-      );
-
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-3');
       expect(mockHumaansConnector.write).toHaveBeenCalledTimes(1);
     });
 
     it('calls AI gap resolution', async () => {
-      await onboardingService.runOnboardingFlow(
-        CUSTOMER_ID,
-        LINKED_ACCOUNT_ID,
-        mockApplication as never,
-        'trace-4',
-      );
-
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-4');
       expect(mockAiGapResolution.resolveGaps).toHaveBeenCalledTimes(1);
     });
 
     it('records audit log', async () => {
-      await onboardingService.runOnboardingFlow(
-        CUSTOMER_ID,
-        LINKED_ACCOUNT_ID,
-        mockApplication as never,
-        'trace-5',
-      );
-
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-5');
       expect(mockAuditLog.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'onboarding.initiated' }),
       );
@@ -227,8 +204,8 @@ describe('Flagship Onboarding Flow', () => {
 
   describe('Idempotency — duplicate event processing', () => {
     it('does not create a second employee when run twice', async () => {
-      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, mockApplication as never, 'trace-A');
-      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, mockApplication as never, 'trace-B');
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-A');
+      await onboardingService.runOnboardingFlow(CUSTOMER_ID, LINKED_ACCOUNT_ID, 'cand-1', 'app-1', 'trace-B');
 
       // In the mock setup both calls go through, but in production
       // the EventEngine idempotency check prevents duplicate webhook processing

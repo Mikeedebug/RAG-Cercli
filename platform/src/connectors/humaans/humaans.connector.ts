@@ -164,6 +164,6 @@ export class HumaansConnector extends BaseConnector {
       };
       return person;
     }
-    throw new Error(`denormalize not implemented for type: ${type}`);
+    return obj;
   }
 }

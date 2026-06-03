@@ -93,9 +93,10 @@ export class TeamtailorConnector extends BaseConnector {
   }
 
   async registerWebhooks(account: LinkedAccount): Promise<string[]> {
-    // Parse credentials ref to get API key — in real use SecretsService would decrypt
     const client = this.getClient({ api_key: account.credentials_ref });
     const webhookIds: string[] = [];
+    // Include linked_account_id in path so incoming webhooks route to the correct tenant
+    const webhookUrl = `${process.env.APP_URL ?? 'http://localhost:3000'}/webhooks/teamtailor/${account.id}`;
 
     const events = ['candidate-hired', 'candidate-moved'];
     for (const event of events) {
@@ -103,15 +104,12 @@ export class TeamtailorConnector extends BaseConnector {
         const response = await client.post<{ data: { id: string } }>('/webhooks', {
           data: {
             type: 'webhooks',
-            attributes: {
-              'subscription-type': event,
-              url: `${process.env.APP_URL ?? 'http://localhost:3000'}/webhooks/teamtailor`,
-            },
+            attributes: { 'subscription-type': event, url: webhookUrl },
           },
         });
         webhookIds.push(response.data.data.id);
       } catch {
-        // webhook might already exist
+        // non-fatal — webhook may already be registered
       }
     }
 
@@ -253,6 +251,7 @@ export class TeamtailorConnector extends BaseConnector {
         },
       };
     }
-    throw new Error(`denormalize not implemented for type: ${type}`);
+    // Teamtailor is read-only for applications; denormalize is a no-op
+    return obj;
   }
 }

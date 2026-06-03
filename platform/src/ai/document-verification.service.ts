@@ -37,7 +37,7 @@ export class AiDocumentVerificationService {
       const base64 = documentBuffer.toString('base64');
 
       const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [
           {
@@ -78,7 +78,7 @@ Respond with JSON:
       await this.prisma.aiCallLog.create({
         data: {
           customer_id: customerId,
-          model: 'claude-sonnet-4-5',
+          model: 'claude-sonnet-4-6',
           prompt_tokens: usage.input_tokens,
           completion_tokens: usage.output_tokens,
           cost_usd: (usage.input_tokens / 1000) * 0.003 + (usage.output_tokens / 1000) * 0.015,

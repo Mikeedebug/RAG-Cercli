@@ -32,17 +32,15 @@ export class EventEngineService {
       rawEvent.event_type,
     ].join(':');
 
-    // Check idempotency
     const existing = await this.prisma.event.findUnique({
       where: { idempotency_key: idempotencyKey },
     });
 
     if (existing && existing.status === 'processed') {
-      this.logger.log(`[${traceId}] Duplicate event detected, skipping: ${idempotencyKey}`);
+      this.logger.log(`[${traceId}] Duplicate event, skipping: ${idempotencyKey}`);
       return;
     }
 
-    // Create or update event record
     const event = await this.prisma.event.upsert({
       where: { idempotency_key: idempotencyKey },
       create: {
@@ -61,7 +59,6 @@ export class EventEngineService {
     try {
       const connector = this.connectorRegistry.get(vendor);
 
-      // Normalize the payload
       const rawData = rawEvent.payload['data'];
       if (!rawData) {
         this.logger.warn(`[${traceId}] No data in event payload`);
@@ -69,56 +66,85 @@ export class EventEngineService {
         return;
       }
 
-      const eventType = rawEvent.event_type;
+      // Normalize candidate from the event
+      const candidateRaw = connector.normalize('candidates', rawData);
+      const cand = candidateRaw as import('../canonical/models').CanonicalCandidate;
 
-      // Map event type to canonical type
-      let canonicalType = 'candidates';
-      if (eventType.includes('application') || eventType.includes('moved')) {
-        canonicalType = 'applications';
-      }
+      const dbCandidate = await this.prisma.canonicalCandidate.upsert({
+        where: {
+          linked_account_id_remote_id: {
+            linked_account_id: linkedAccountId,
+            remote_id: cand.remote_id,
+          },
+        },
+        create: {
+          remote_id: cand.remote_id,
+          linked_account_id: linkedAccountId,
+          customer_id: customerId,
+          first_name: cand.first_name,
+          last_name: cand.last_name,
+          email: cand.email,
+          phone: cand.phone,
+          nationality: cand.nationality,
+          location: cand.location,
+          remote_data: (cand.remote_data ?? {}) as object,
+          custom_fields: (cand.custom_fields ?? {}) as object,
+        },
+        update: {
+          first_name: cand.first_name,
+          last_name: cand.last_name,
+          email: cand.email,
+          modified_at: new Date(),
+        },
+      });
 
-      const canonical = connector.normalize(canonicalType, rawData);
+      // Upsert application record when we have enough data
+      let dbApplication: import('@prisma/client').CanonicalApplication | null = null;
+      const appRemoteId = (rawData as Record<string, unknown>)['applicationId'] as string | undefined
+        ?? (rawEvent.payload['meta'] as Record<string, unknown> | undefined)?.['application_id'] as string | undefined;
 
-      // Upsert canonical record
-      if (canonicalType === 'candidates') {
-        const cand = canonical as import('../canonical/models').CanonicalCandidate;
-        await this.prisma.canonicalCandidate.upsert({
+      if (appRemoteId) {
+        const appRaw = connector.normalize('applications', rawData);
+        const app = appRaw as import('../canonical/models').CanonicalApplication;
+        const unifiedEvent = this.mapToUnifiedEvent(rawEvent.event_type);
+        const appStatus = unifiedEvent === 'candidate.offer_accepted' ? 'offer_accepted' : app.status;
+
+        dbApplication = await this.prisma.canonicalApplication.upsert({
           where: {
             linked_account_id_remote_id: {
               linked_account_id: linkedAccountId,
-              remote_id: cand.remote_id,
+              remote_id: appRemoteId,
             },
           },
           create: {
-            remote_id: cand.remote_id,
+            remote_id: appRemoteId,
             linked_account_id: linkedAccountId,
             customer_id: customerId,
-            first_name: cand.first_name,
-            last_name: cand.last_name,
-            email: cand.email,
-            phone: cand.phone,
-            nationality: cand.nationality,
-            location: cand.location,
-            remote_data: (cand.remote_data ?? {}) as object,
-            custom_fields: (cand.custom_fields ?? {}) as object,
+            candidate_id: dbCandidate.id,
+            job_title: app.job_title,
+            job_id: app.job_id,
+            status: appStatus as import('@prisma/client').ApplicationStatus,
+            applied_at: app.applied_at,
+            work_location: app.work_location,
+            remote_data: (app.remote_data ?? {}) as object,
+            custom_fields: (app.custom_fields ?? {}) as object,
           },
           update: {
-            first_name: cand.first_name,
-            last_name: cand.last_name,
-            email: cand.email,
+            status: appStatus as import('@prisma/client').ApplicationStatus,
             modified_at: new Date(),
           },
         });
       }
 
-      // Emit unified event
       const unifiedEventName = this.mapToUnifiedEvent(rawEvent.event_type);
       this.eventEmitter.emit(unifiedEventName, {
         traceId,
         customerId,
         linkedAccountId,
         vendor,
-        canonical,
+        // Emit DB records (with real IDs) so downstream services can query by ID
+        candidateId: dbCandidate.id,
+        applicationId: dbApplication?.id ?? null,
         rawEvent,
       });
 
@@ -127,15 +153,12 @@ export class EventEngineService {
         data: { status: 'processed', processed_at: new Date() },
       });
 
-      this.logger.log(`[${traceId}] Event processed: ${unifiedEventName}`);
+      this.logger.log(`[${traceId}] Event processed → ${unifiedEventName}`);
     } catch (err) {
       this.logger.error(`[${traceId}] Failed to process event`, err);
       await this.prisma.event.update({
         where: { id: event.id },
-        data: {
-          status: 'failed',
-          retry_count: { increment: 1 },
-        },
+        data: { status: 'failed', retry_count: { increment: 1 } },
       });
       throw err;
     }
@@ -143,9 +166,11 @@ export class EventEngineService {
 
   private mapToUnifiedEvent(vendorEventType: string): string {
     const mapping: Record<string, string> = {
-      'candidate-hired': 'candidate.hired',
+      // Teamtailor: 'candidate-hired' fires when offer is accepted / candidate is hired
+      'candidate-hired': 'candidate.offer_accepted',
+      // 'candidate-moved' fires on stage transitions; treat as a generic move
       'candidate-moved': 'candidate.moved',
-      'candidate-offer': 'candidate.offer',
+      'candidate-offer': 'candidate.offer_accepted',
       'application-updated': 'candidate.moved',
     };
     return mapping[vendorEventType] ?? `vendor.${vendorEventType}`;

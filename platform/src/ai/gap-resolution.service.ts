@@ -53,7 +53,7 @@ Only respond with valid JSON, no explanation.`;
 
     try {
       const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-4-6',
         max_tokens: 1024,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -61,7 +61,7 @@ Only respond with valid JSON, no explanation.`;
       const usage = response.usage;
       const outputText = response.content[0].type === 'text' ? response.content[0].text : '{}';
 
-      await this.logAiCall(customerId, 'claude-sonnet-4-5', usage.input_tokens, usage.output_tokens, 'gap_resolution', { candidate, application, requiredFields }, JSON.parse(outputText));
+      await this.logAiCall(customerId, 'claude-sonnet-4-6', usage.input_tokens, usage.output_tokens, 'gap_resolution', { candidate, application, requiredFields }, JSON.parse(outputText));
 
       const parsed = JSON.parse(outputText) as { resolved?: Record<string, unknown>; flagged?: string[]; confidence?: number };
       return {
