@@ -2,14 +2,8 @@
  * Integration test for the flagship onboarding flow.
  * Mocks: BullMQ, Anthropic API, Humaans HTTP, PrismaService
  */
-import { Test, TestingModule } from '@nestjs/testing';
 import { OnboardingService } from '../src/onboarding/onboarding.service';
 import { ChecklistGeneratorService } from '../src/onboarding/checklist-generator.service';
-import { AiGapResolutionService } from '../src/ai/gap-resolution.service';
-import { AiDocumentVerificationService } from '../src/ai/document-verification.service';
-import { AuditLogService } from '../src/core/audit-log/audit-log.service';
-import { HumaansConnector } from '../src/connectors/humaans/humaans.connector';
-import { LinkedAccountsService } from '../src/linked-accounts/linked-accounts.service';
 
 const CUSTOMER_ID = 'test-customer-1';
 const LINKED_ACCOUNT_ID = 'linked-acc-1';
@@ -138,7 +132,7 @@ describe('Flagship Onboarding Flow', () => {
     getDecryptedCredentials: jest.fn().mockResolvedValue({ api_key: 'test-key' }),
   };
 
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.clearAllMocks();
 
     mockPrisma.canonicalCandidate.findFirst.mockResolvedValue(mockCandidate);
@@ -157,23 +151,6 @@ describe('Flagship Onboarding Flow', () => {
     mockPrisma.auditLog.create.mockResolvedValue({});
     mockPrisma.aiCallLog.create.mockResolvedValue({});
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        OnboardingService,
-        ChecklistGeneratorService,
-        { provide: 'PrismaService', useValue: mockPrisma },
-        { provide: AiGapResolutionService, useValue: mockAiGapResolution },
-        { provide: AiDocumentVerificationService, useValue: mockAiDocVerification },
-        { provide: AuditLogService, useValue: mockAuditLog },
-        { provide: HumaansConnector, useValue: mockHumaansConnector },
-        { provide: LinkedAccountsService, useValue: mockLinkedAccountsService },
-      ],
-    })
-      .overrideProvider('PrismaService')
-      .useValue(mockPrisma)
-      .compile();
-
-    // Manually inject PrismaService since NestJS DI uses the token
     onboardingService = new OnboardingService(
       mockPrisma as never,
       new ChecklistGeneratorService(),
