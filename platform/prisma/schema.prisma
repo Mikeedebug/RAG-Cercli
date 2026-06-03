@@ -1,0 +1,227 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LinkedAccountStatus {
+  active
+  inactive
+  error
+}
+
+enum EventStatus {
+  pending
+  processing
+  processed
+  failed
+  dead_letter
+}
+
+enum EmployeeStatus {
+  pending
+  active
+  inactive
+  terminated
+}
+
+enum ApplicationStatus {
+  applied
+  interview
+  offer
+  offer_accepted
+  hired
+  rejected
+}
+
+enum ChecklistStatus {
+  pending
+  in_progress
+  complete
+  blocked
+}
+
+model LinkedAccount {
+  id             String              @id @default(uuid())
+  customer_id    String
+  vendor         String
+  category       String
+  credentials_ref String
+  scopes         String[]
+  status         LinkedAccountStatus @default(active)
+  webhook_ids    String[]
+  created_at     DateTime            @default(now())
+  updated_at     DateTime            @updatedAt
+
+  candidates    CanonicalCandidate[]
+  applications  CanonicalApplication[]
+  employees     CanonicalEmployee[]
+  events        Event[]
+
+  @@index([customer_id])
+  @@index([vendor, customer_id])
+}
+
+model CanonicalCandidate {
+  id                String   @id @default(uuid())
+  remote_id         String
+  linked_account_id String
+  customer_id       String
+  first_name        String?
+  last_name         String?
+  email             String?
+  phone             String?
+  nationality       String?
+  location          String?
+  remote_data       Json     @default("{}")
+  custom_fields     Json     @default("{}")
+  created_at        DateTime @default(now())
+  modified_at       DateTime @updatedAt
+
+  linked_account    LinkedAccount @relation(fields: [linked_account_id], references: [id])
+  applications      CanonicalApplication[]
+
+  @@unique([linked_account_id, remote_id])
+  @@index([customer_id])
+}
+
+model CanonicalApplication {
+  id                String            @id @default(uuid())
+  remote_id         String
+  linked_account_id String
+  customer_id       String
+  candidate_id      String?
+  job_title         String?
+  job_id            String?
+  status            ApplicationStatus @default(applied)
+  applied_at        DateTime?
+  stage             String?
+  work_location     String?
+  remote_data       Json              @default("{}")
+  custom_fields     Json              @default("{}")
+  created_at        DateTime          @default(now())
+  modified_at       DateTime          @updatedAt
+
+  linked_account    LinkedAccount       @relation(fields: [linked_account_id], references: [id])
+  candidate         CanonicalCandidate? @relation(fields: [candidate_id], references: [id])
+
+  @@unique([linked_account_id, remote_id])
+  @@index([customer_id])
+}
+
+model CanonicalEmployee {
+  id                String         @id @default(uuid())
+  remote_id         String?
+  linked_account_id String
+  customer_id       String
+  first_name        String?
+  last_name         String?
+  email             String?
+  phone             String?
+  nationality       String?
+  work_location     String?
+  job_title         String?
+  department        String?
+  start_date        DateTime?
+  status            EmployeeStatus @default(pending)
+  remote_data       Json           @default("{}")
+  custom_fields     Json           @default("{}")
+  created_at        DateTime       @default(now())
+  modified_at       DateTime       @updatedAt
+
+  linked_account    LinkedAccount         @relation(fields: [linked_account_id], references: [id])
+  rtw_checklists    RightToWorkChecklist[]
+
+  @@index([customer_id])
+  @@index([linked_account_id])
+}
+
+model Event {
+  id                String      @id @default(uuid())
+  linked_account_id String
+  customer_id       String
+  event_type        String
+  vendor_event_id   String?
+  payload           Json        @default("{}")
+  processed_at      DateTime?
+  idempotency_key   String      @unique
+  trace_id          String
+  status            EventStatus @default(pending)
+  retry_count       Int         @default(0)
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
+
+  linked_account    LinkedAccount @relation(fields: [linked_account_id], references: [id])
+
+  @@index([customer_id])
+  @@index([linked_account_id, status])
+}
+
+model Workflow {
+  id           String   @id @default(uuid())
+  customer_id  String
+  name         String
+  trigger      String
+  conditions   Json     @default("[]")
+  actions      Json     @default("[]")
+  field_mapping Json    @default("{}")
+  enabled      Boolean  @default(true)
+  version      Int      @default(1)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([customer_id, trigger])
+}
+
+model RightToWorkChecklist {
+  id           String          @id @default(uuid())
+  employee_id  String
+  customer_id  String
+  jurisdiction String
+  status       ChecklistStatus @default(pending)
+  items        Json            @default("[]")
+  created_at   DateTime        @default(now())
+  updated_at   DateTime        @updatedAt
+
+  employee     CanonicalEmployee @relation(fields: [employee_id], references: [id])
+
+  @@index([customer_id])
+  @@index([employee_id])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  customer_id   String
+  actor_id      String
+  actor_type    String
+  action        String
+  resource_type String
+  resource_id   String
+  before        Json?
+  after         Json?
+  created_at    DateTime @default(now())
+
+  @@index([customer_id])
+  @@index([resource_type, resource_id])
+}
+
+model AiCallLog {
+  id                String   @id @default(uuid())
+  customer_id       String
+  model             String
+  prompt_tokens     Int
+  completion_tokens Int
+  cost_usd          Float
+  purpose           String
+  input             Json     @default("{}")
+  output            Json     @default("{}")
+  created_at        DateTime @default(now())
+
+  @@index([customer_id])
+}
