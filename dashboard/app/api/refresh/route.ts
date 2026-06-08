@@ -178,3 +178,12 @@ export async function POST() {
 
   return NextResponse.json({ success: true, signals_added: signalsAdded, insight_cards_generated: insightCardsGenerated, errors })
 }
+
+export async function GET() {
+  const { data } = await supabase
+    .from('refresh_log')
+    .select('*')
+    .order('started_at', { ascending: false })
+    .limit(3)
+  return NextResponse.json(data ?? [])
+}
