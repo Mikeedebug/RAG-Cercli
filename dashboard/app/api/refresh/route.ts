@@ -6,6 +6,21 @@ import { extractSignalsBatch } from '../../../lib/claude'
 
 export const maxDuration = 300
 
+// Fuzzy-match a name against canonical accounts list
+function matchAccountName(raw: string, canonicalNames: string[]): string {
+  const normalized = raw.toLowerCase().trim()
+  // Exact match first
+  const exact = canonicalNames.find((n) => n.toLowerCase() === normalized)
+  if (exact) return exact
+  // Check if any canonical name is contained in the raw name, or vice versa
+  const partial = canonicalNames.find(
+    (n) =>
+      normalized.includes(n.toLowerCase()) ||
+      n.toLowerCase().includes(normalized.split(' ')[0].toLowerCase())
+  )
+  return partial ?? raw
+}
+
 export async function POST() {
   const { data: logEntry, error: logErr } = await supabase
     .from('refresh_log')
@@ -22,20 +37,27 @@ export async function POST() {
   let insightsQueued = 0
   const errors: string[] = []
 
-  // Load already-queued insight cards to avoid duplicates (source_id + title)
-  const { data: existingCards } = await supabase
-    .from('insight_cards')
-    .select('source_id, title')
+  // Load canonical accounts from DB — used for name resolution + Demodesk matching
+  const { data: dbAccounts } = await supabase.from('accounts').select('pylon_id, name')
+  const pylonIdToName: Record<string, string> = {}
+  const canonicalNames: string[] = []
+  for (const acc of dbAccounts ?? []) {
+    pylonIdToName[acc.pylon_id] = acc.name
+    canonicalNames.push(acc.name)
+  }
+
+  // Load already-queued insight cards to avoid duplicates
+  const { data: existingCards } = await supabase.from('insight_cards').select('source_id, title')
   const existingKeys = new Set(
     (existingCards ?? []).map(
       (c: { source_id: string; title: string }) => `${c.source_id}:${c.title}`
     )
   )
 
-  // --- Pylon: batch all issues per account, one Claude call per account ---
+  // --- Pylon ---
   if (process.env.PYLON_API_KEY) {
     try {
-      const issues = await fetchPylonIssues(since)
+      const issues = await fetchPylonIssues(since, pylonIdToName)
 
       const byAccount: Record<string, typeof issues> = {}
       for (const issue of issues) {
@@ -85,12 +107,15 @@ export async function POST() {
       const recordings = await fetchDemodeskRecordings(since)
 
       for (const rec of recordings) {
+        // Match recording name to canonical account
+        const accountName = matchAccountName(rec.account_name, canonicalNames)
+
         const transcript = await fetchDemodeskTranscript(rec.token)
         if (!transcript) continue
 
         try {
           const extracted = await extractSignalsBatch(
-            rec.account_name,
+            accountName,
             'sales call transcript',
             transcript
           )
@@ -102,7 +127,7 @@ export async function POST() {
               type: 'new_signal',
               title: sig.feature_request,
               body: sig.verbatim_quote ?? '',
-              related_account: rec.account_name,
+              related_account: accountName,
               source: 'demodesk',
               source_id: rec.token,
               signal_date: rec.start_date,

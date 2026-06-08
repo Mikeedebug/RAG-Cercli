@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { FeatureRequest, InsightCard, Signal } from '../lib/supabase'
+import type { FeatureRequest, InsightCard } from '../lib/supabase'
 import FeatureRequestList from '../components/FeatureRequestList'
 import InsightFeed from '../components/InsightFeed'
 import AccountView from '../components/AccountView'
@@ -10,10 +10,14 @@ import { formatDistanceToNow } from 'date-fns'
 
 type AccountData = {
   account_name: string
+  domain?: string
+  pylon_id?: string
   signal_count: number
+  pending_insights: number
+  total_activity: number
   sources: string[]
   last_activity: string | null
-  signals: Signal[]
+  top_requests: string[]
 }
 
 type DashboardData = {
