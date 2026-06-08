@@ -1,33 +1,22 @@
 const PYLON_BASE = 'https://api.usepylon.com'
 
-function pylonHeaders() {
+function headers() {
   return { Authorization: `Bearer ${process.env.PYLON_API_KEY}` }
 }
 
 async function pylonGet(path: string) {
-  const res = await fetch(`${PYLON_BASE}${path}`, { headers: pylonHeaders() })
+  const res = await fetch(`${PYLON_BASE}${path}`, { headers: headers() })
   if (!res.ok) throw new Error(`Pylon ${path} failed: ${res.status}`)
   return res.json()
 }
 
-// Fetch all accounts and return id -> name map
-export async function fetchPylonAccountMap(): Promise<Record<string, string>> {
-  const map: Record<string, string> = {}
-  let cursor: string | null = null
-
-  while (true) {
-    const params = new URLSearchParams({ limit: '100' })
-    if (cursor) params.set('cursor', cursor)
-    const data = await pylonGet(`/accounts?${params}`)
-    const accounts = data.accounts ?? data ?? []
-    for (const a of accounts) {
-      if (a.id && a.name) map[a.id] = a.name
-    }
-    if (!data.has_next_page || !data.cursor) break
-    cursor = data.cursor
+async function resolveAccountName(accountId: string): Promise<string> {
+  try {
+    const data = await pylonGet(`/accounts/${accountId}`)
+    return data.name ?? accountId
+  } catch {
+    return accountId
   }
-
-  return map
 }
 
 export type PylonIssue = {
@@ -40,34 +29,35 @@ export type PylonIssue = {
 export async function fetchPylonIssues(since: Date): Promise<PylonIssue[]> {
   if (!process.env.PYLON_API_KEY) return []
 
-  const accountMap = await fetchPylonAccountMap()
-  const issues: PylonIssue[] = []
+  // Fetch all issues with pagination
+  const rawIssues: { id: string; title: string; created_at: string; account_id: string }[] = []
   let cursor: string | null = null
 
   while (true) {
-    const params = new URLSearchParams({
-      limit: '100',
-      created_after: since.toISOString(),
-    })
+    const params = new URLSearchParams({ limit: '100', created_after: since.toISOString() })
     if (cursor) params.set('cursor', cursor)
-
     const data = await pylonGet(`/issues?${params}`)
-    const items = data.issues ?? data ?? []
-
-    for (const issue of items) {
-      issues.push({
-        id: issue.id,
-        title: issue.title ?? '',
-        created_at: issue.created_at,
-        account_name: accountMap[issue.account_id] ?? 'Unknown',
-      })
-    }
-
+    const items = data.issues ?? []
+    rawIssues.push(...items)
     if (!data.has_next_page || !data.cursor) break
     cursor = data.cursor
   }
 
-  return issues
+  // Resolve unique account IDs to names in parallel
+  const uniqueAccountIds = [...new Set(rawIssues.map((i) => i.account_id).filter(Boolean))]
+  const nameMap: Record<string, string> = {}
+  await Promise.all(
+    uniqueAccountIds.map(async (id) => {
+      nameMap[id] = await resolveAccountName(id)
+    })
+  )
+
+  return rawIssues.map((issue) => ({
+    id: issue.id,
+    title: issue.title ?? '',
+    created_at: issue.created_at,
+    account_name: nameMap[issue.account_id] ?? 'Unknown',
+  }))
 }
 
 export async function fetchPylonIssueMessages(issueId: string): Promise<string[]> {
