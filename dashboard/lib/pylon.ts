@@ -34,10 +34,12 @@ export async function fetchPylonIssues(since: Date): Promise<PylonIssue[]> {
   let cursor: string | null = null
 
   while (true) {
-    const params = new URLSearchParams({ limit: '100', created_after: since.toISOString() })
+    const params = new URLSearchParams({ limit: '100' })
     if (cursor) params.set('cursor', cursor)
     const data = await pylonGet(`/issues?${params}`)
-    const items = data.issues ?? []
+    const items = (data.issues ?? []).filter(
+      (i: { created_at: string }) => new Date(i.created_at) >= since
+    )
     rawIssues.push(...items)
     if (!data.has_next_page || !data.cursor) break
     cursor = data.cursor

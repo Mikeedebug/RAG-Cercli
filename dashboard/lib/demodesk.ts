@@ -12,7 +12,7 @@ export async function fetchDemodeskRecordings(since: Date): Promise<DemodeskReco
 
   const res = await fetch(
     `${DEMODESK_API_BASE}/recordings?since=${since.toISOString()}`,
-    { headers: { 'X-API-Key': apiKey } }
+    { headers: { 'api-key': apiKey } }
   )
   if (!res.ok) throw new Error(`Demodesk recordings fetch failed: ${res.status}`)
   const data = await res.json()
@@ -25,7 +25,7 @@ export async function fetchDemodeskTranscript(token: string): Promise<string | n
 
   const res = await fetch(
     `${DEMODESK_API_BASE}/recordings/${token}/transcript`,
-    { headers: { 'X-API-Key': apiKey } }
+    { headers: { 'api-key': apiKey } }
   )
   if (!res.ok) return null
   const data = await res.json()
