@@ -26,7 +26,7 @@ export async function fetchDemodeskRecordings(since: Date): Promise<DemodeskReco
     })
     if (cursor) params.set('cursor', cursor)
 
-    const res = await fetch(`${DEMODESK_API_BASE}/recordings?${params}`, { headers: headers(apiKey) })
+    const res = await fetch(`${DEMODESK_API_BASE}/recordings?${params}`, { headers: headers(apiKey), signal: AbortSignal.timeout(10000) })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
       throw new Error(`Demodesk recordings fetch failed: ${res.status} - ${body.slice(0, 200)}`)
@@ -59,7 +59,7 @@ export async function fetchDemodeskTranscript(token: string): Promise<string | n
 
   const res = await fetch(
     `${DEMODESK_API_BASE}/recordings/${token}/transcript?format=plaintext`,
-    { headers: headers(apiKey) }
+    { headers: headers(apiKey), signal: AbortSignal.timeout(15000) }
   )
   if (!res.ok) return null
   return res.text()

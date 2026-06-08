@@ -8,8 +8,15 @@ function headers() {
   }
 }
 
+function withTimeout(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms)
+}
+
 async function pylonGet(path: string) {
-  const res = await fetch(`${PYLON_BASE}${path}`, { headers: headers() })
+  const res = await fetch(`${PYLON_BASE}${path}`, {
+    headers: headers(),
+    signal: withTimeout(10000),
+  })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`Pylon ${path} failed: ${res.status} - ${body.slice(0, 300)}`)
@@ -22,6 +29,7 @@ async function pylonPost(path: string, body: Record<string, unknown>) {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(body),
+    signal: withTimeout(10000),
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
