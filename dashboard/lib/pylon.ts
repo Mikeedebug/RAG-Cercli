@@ -6,7 +6,10 @@ function headers() {
 
 async function pylonGet(path: string) {
   const res = await fetch(`${PYLON_BASE}${path}`, { headers: headers() })
-  if (!res.ok) throw new Error(`Pylon ${path} failed: ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Pylon ${path} failed: ${res.status} - ${body.slice(0, 200)}`)
+  }
   return res.json()
 }
 
@@ -29,20 +32,22 @@ export type PylonIssue = {
 export async function fetchPylonIssues(since: Date): Promise<PylonIssue[]> {
   if (!process.env.PYLON_API_KEY) return []
 
-  // Fetch all issues with pagination
+  // Fetch all issues with pagination — try both types since the API may require it
   const rawIssues: { id: string; title: string; created_at: string; account_id: string }[] = []
-  let cursor: string | null = null
 
-  while (true) {
-    const params = new URLSearchParams({ limit: '100' })
-    if (cursor) params.set('cursor', cursor)
-    const data = await pylonGet(`/issues?${params}`)
-    const items = (data.issues ?? []).filter(
-      (i: { created_at: string }) => new Date(i.created_at) >= since
-    )
-    rawIssues.push(...items)
-    if (!data.has_next_page || !data.cursor) break
-    cursor = data.cursor
+  for (const type of ['ticket', 'conversation'] as const) {
+    let cursor: string | null = null
+    while (true) {
+      const params = new URLSearchParams({ limit: '100', type })
+      if (cursor) params.set('cursor', cursor)
+      const data = await pylonGet(`/issues?${params}`)
+      const items = (data.issues ?? []).filter(
+        (i: { created_at: string }) => new Date(i.created_at) >= since
+      )
+      rawIssues.push(...items)
+      if (!data.has_next_page || !data.cursor) break
+      cursor = data.cursor
+    }
   }
 
   // Resolve unique account IDs to names in parallel
