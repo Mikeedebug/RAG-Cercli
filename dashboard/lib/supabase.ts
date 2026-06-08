@@ -51,4 +51,7 @@ export type InsightCard = {
   acted_at: string | null
   snoozed_until: string | null
   created_at: string
+  source?: string
+  source_id?: string
+  signal_date?: string
 }

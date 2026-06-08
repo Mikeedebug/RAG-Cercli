@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '../../../lib/supabase'
 import { fetchPylonIssues } from '../../../lib/pylon'
 import { fetchDemodeskRecordings, fetchDemodeskTranscript } from '../../../lib/demodesk'
-import { extractSignalsBatch, generateInsightCards } from '../../../lib/claude'
+import { extractSignalsBatch } from '../../../lib/claude'
 
 export const maxDuration = 300
 
@@ -19,30 +19,30 @@ export async function POST() {
 
   const logId = logEntry.id
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-  let signalsAdded = 0
+  let insightsQueued = 0
   const errors: string[] = []
-  const newSignalIds: string[] = []
 
-  const { data: existingSignals } = await supabase.from('signals').select('source_id, source')
+  // Load already-queued insight cards to avoid duplicates (source_id + title)
+  const { data: existingCards } = await supabase
+    .from('insight_cards')
+    .select('source_id, title')
   const existingKeys = new Set(
-    (existingSignals ?? []).map((s: { source: string; source_id: string }) => `${s.source}:${s.source_id}`)
+    (existingCards ?? []).map(
+      (c: { source_id: string; title: string }) => `${c.source_id}:${c.title}`
+    )
   )
 
   // --- Pylon: batch all issues per account, one Claude call per account ---
   if (process.env.PYLON_API_KEY) {
     try {
       const issues = await fetchPylonIssues(since)
-      const newIssues = issues.filter((i) => !existingKeys.has(`pylon:${i.id}`))
 
-      // Group by account
-      const byAccount: Record<string, typeof newIssues> = {}
-      for (const issue of newIssues) {
-        const key = issue.account_name
-        if (!byAccount[key]) byAccount[key] = []
-        byAccount[key].push(issue)
+      const byAccount: Record<string, typeof issues> = {}
+      for (const issue of issues) {
+        if (!byAccount[issue.account_name]) byAccount[issue.account_name] = []
+        byAccount[issue.account_name].push(issue)
       }
 
-      // One Claude call per account with all their issue titles
       for (const [accountName, accountIssues] of Object.entries(byAccount)) {
         const content = accountIssues
           .map((i) => `[${new Date(i.created_at).toLocaleDateString()}] ${i.title}`)
@@ -51,24 +51,25 @@ export async function POST() {
         try {
           const extracted = await extractSignalsBatch(accountName, 'support tickets', content)
           for (const sig of extracted) {
-            // Attach to the most recent issue from this account as source_id
             const sourceIssue = accountIssues[0]
-            const { data } = await supabase
-              .from('signals')
-              .insert({
-                account_name: accountName,
-                source: 'pylon',
-                source_id: sourceIssue.id,
-                feature_request: sig.feature_request,
-                verbatim_quote: sig.verbatim_quote,
-                signal_date: sourceIssue.created_at,
-              })
-              .select('id')
-              .single()
-            if (data?.id) { newSignalIds.push(data.id); signalsAdded++ }
+            const key = `${sourceIssue.id}:${sig.feature_request}`
+            if (existingKeys.has(key)) continue
+
+            const { error } = await supabase.from('insight_cards').insert({
+              type: 'new_signal',
+              title: sig.feature_request,
+              body: sig.verbatim_quote ?? '',
+              related_account: accountName,
+              source: 'pylon',
+              source_id: sourceIssue.id,
+              signal_date: sourceIssue.created_at,
+              status: 'pending',
+            })
+            if (!error) {
+              insightsQueued++
+              existingKeys.add(key)
+            }
           }
-          // Mark all issues as processed
-          for (const i of accountIssues) existingKeys.add(`pylon:${i.id}`)
         } catch (e) {
           errors.push(`Claude failed for ${accountName}: ${e}`)
         }
@@ -82,28 +83,36 @@ export async function POST() {
   if (process.env.DEMODESK_API_KEY) {
     try {
       const recordings = await fetchDemodeskRecordings(since)
+
       for (const rec of recordings) {
-        if (existingKeys.has(`demodesk:${rec.token}`)) continue
         const transcript = await fetchDemodeskTranscript(rec.token)
         if (!transcript) continue
+
         try {
-          const extracted = await extractSignalsBatch(rec.account_name, 'sales call transcript', transcript)
+          const extracted = await extractSignalsBatch(
+            rec.account_name,
+            'sales call transcript',
+            transcript
+          )
           for (const sig of extracted) {
-            const { data } = await supabase
-              .from('signals')
-              .insert({
-                account_name: rec.account_name,
-                source: 'demodesk',
-                source_id: rec.token,
-                feature_request: sig.feature_request,
-                verbatim_quote: sig.verbatim_quote,
-                signal_date: rec.start_date,
-              })
-              .select('id')
-              .single()
-            if (data?.id) { newSignalIds.push(data.id); signalsAdded++ }
+            const key = `${rec.token}:${sig.feature_request}`
+            if (existingKeys.has(key)) continue
+
+            const { error } = await supabase.from('insight_cards').insert({
+              type: 'new_signal',
+              title: sig.feature_request,
+              body: sig.verbatim_quote ?? '',
+              related_account: rec.account_name,
+              source: 'demodesk',
+              source_id: rec.token,
+              signal_date: rec.start_date,
+              status: 'pending',
+            })
+            if (!error) {
+              insightsQueued++
+              existingKeys.add(key)
+            }
           }
-          existingKeys.add(`demodesk:${rec.token}`)
         } catch (e) {
           errors.push(`Claude failed for Demodesk ${rec.token}: ${e}`)
         }
@@ -113,70 +122,18 @@ export async function POST() {
     }
   }
 
-  // Update signal_count / account_count on feature_requests
-  const { data: allFRs } = await supabase.from('feature_requests').select('id, title')
-  const { data: allSignals } = await supabase.from('signals').select('id, account_name, feature_request, signal_date')
-  if (allFRs && allSignals) {
-    for (const fr of allFRs) {
-      const frSigs = allSignals.filter((s: { feature_request: string }) =>
-        s.feature_request.toLowerCase().includes(fr.title.toLowerCase().slice(0, 20))
-      )
-      const accounts = new Set(frSigs.map((s: { account_name: string }) => s.account_name))
-      const last = frSigs.sort((a: { signal_date: string }, b: { signal_date: string }) =>
-        new Date(b.signal_date).getTime() - new Date(a.signal_date).getTime()
-      )[0]
-      await supabase.from('feature_requests').update({
-        signal_count: frSigs.length,
-        account_count: accounts.size,
-        last_signal_at: last?.signal_date ?? null,
-        updated_at: new Date().toISOString(),
-      }).eq('id', fr.id)
-    }
-  }
+  await supabase
+    .from('refresh_log')
+    .update({
+      completed_at: new Date().toISOString(),
+      signals_added: insightsQueued,
+      insight_cards_generated: insightsQueued,
+      status: errors.length > 0 && insightsQueued === 0 ? 'failed' : 'completed',
+      error: errors.length > 0 ? errors.join('; ') : null,
+    })
+    .eq('id', logId)
 
-  // Generate insight cards
-  let insightCardsGenerated = 0
-  if (process.env.ANTHROPIC_API_KEY && newSignalIds.length > 0) {
-    try {
-      const { data: frs } = await supabase.from('feature_requests').select('*').order('rank', { ascending: true })
-      const { data: newSigs } = await supabase.from('signals').select('*').in('id', newSignalIds)
-      const { data: allSigs } = await supabase.from('signals').select('*').gte('signal_date', since.toISOString())
-      const cards = await generateInsightCards(frs ?? [], newSigs ?? [], allSigs ?? [])
-
-      for (const card of cards) {
-        let relatedFrId: string | null = null
-        if (card.related_fr_title && frs) {
-          const match = frs.find((fr: { title: string }) =>
-            fr.title.toLowerCase().includes((card.related_fr_title ?? '').toLowerCase().slice(0, 15))
-          )
-          relatedFrId = match?.id ?? null
-        }
-        const { error } = await supabase.from('insight_cards').insert({
-          type: card.type,
-          title: card.title,
-          body: card.body,
-          related_fr_id: relatedFrId,
-          related_account: card.related_account,
-          signal_ids: newSignalIds.slice(0, 10),
-          action: card.action,
-          status: 'pending',
-        })
-        if (!error) insightCardsGenerated++
-      }
-    } catch (e) {
-      errors.push(`Insight card generation failed: ${e}`)
-    }
-  }
-
-  await supabase.from('refresh_log').update({
-    completed_at: new Date().toISOString(),
-    signals_added: signalsAdded,
-    insight_cards_generated: insightCardsGenerated,
-    status: errors.length > 0 && signalsAdded === 0 ? 'failed' : 'completed',
-    error: errors.length > 0 ? errors.join('; ') : null,
-  }).eq('id', logId)
-
-  return NextResponse.json({ success: true, signals_added: signalsAdded, insight_cards_generated: insightCardsGenerated, errors })
+  return NextResponse.json({ success: true, insights_queued: insightsQueued, errors })
 }
 
 export async function GET() {
