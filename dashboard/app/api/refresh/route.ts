@@ -44,7 +44,7 @@ export async function POST() {
 
         const messages = await fetchPylonIssueMessages(issue.id)
         const content = [issue.title, ...messages].join('\n\n')
-        const accountName = issue.account?.name ?? 'Unknown'
+        const accountName = issue.account_name ?? 'Unknown'
 
         let extracted = []
         try {
