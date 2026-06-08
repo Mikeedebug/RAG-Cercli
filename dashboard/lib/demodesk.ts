@@ -35,9 +35,23 @@ export async function fetchDemodeskRecordings(since: Date): Promise<DemodeskReco
     const items: Array<{ recordingToken: string; name: string; demoStartDate: string }> = data.data ?? []
 
     for (const item of items) {
-      // Extract account name: "CompanyName - Meeting Type" → "CompanyName"
-      const nameParts = item.name?.split(' - ')
-      const accountName = nameParts && nameParts.length > 1 ? nameParts[0].trim() : (item.name ?? 'Unknown')
+      // Meeting names look like "TEZO <> CERCLI", "CERCLI X RZM ADMIN TRAINING", "CompanyName - ATS Demo"
+      // Extract the non-Cercli party as the account name
+      const name = item.name ?? ''
+      let accountName = name
+      const cercliPattern = /\bcercli\b/i
+      if (cercliPattern.test(name)) {
+        // Strip "CERCLI", connectors (<>, X, -), and common suffixes to get the other party
+        accountName = name
+          .replace(/\bcercli\b/gi, '')
+          .replace(/\s*(<>|[Xx]|[-–—]|ADMIN TRAINING|DEMO|CALL|MEETING|INTRO|DISCOVERY|FOLLOW.?UP)\s*/gi, ' ')
+          .trim()
+          .replace(/^\W+|\W+$/g, '')
+          .trim()
+      } else if (name.includes(' - ')) {
+        accountName = name.split(' - ')[0].trim()
+      }
+      if (!accountName) accountName = name || 'Unknown'
       recordings.push({
         token: item.recordingToken,
         account_name: accountName,
