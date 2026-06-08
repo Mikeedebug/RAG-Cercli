@@ -22,6 +22,13 @@ export async function GET() {
 
   const signals = signalsRes.data ?? []
   const canonicalAccounts = accountsRes.data ?? []
+  const allFRs: { id: string; title: string; status: string }[] = frsRes.data ?? []
+
+  // Map FR title (lowercase) → { id, status }
+  const frByTitle: Record<string, { id: string; status: string }> = {}
+  for (const fr of allFRs) {
+    frByTitle[fr.title.toLowerCase()] = { id: fr.id, status: fr.status }
+  }
 
   // Build signal map by account name
   const signalMap: Record<string, { count: number; sources: Set<string>; last_activity: string | null; feature_requests: string[] }> = {}
@@ -51,6 +58,18 @@ export async function GET() {
     const sigData = signalMap[acc.name] ?? { count: 0, sources: new Set(), last_activity: null, feature_requests: [] }
     const pendingCount = pendingMap[acc.name] ?? 0
     const totalActivity = sigData.count + pendingCount
+
+    // Deduplicate FRs for this account and attach id + status
+    const seen = new Set<string>()
+    const accountFRs: { id: string; title: string; status: string }[] = []
+    for (const title of sigData.feature_requests) {
+      const key = title.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      const fr = frByTitle[key]
+      accountFRs.push({ id: fr?.id ?? '', title, status: fr?.status ?? 'under_review' })
+    }
+
     return {
       account_name: acc.name,
       domain: acc.domain,
@@ -60,7 +79,7 @@ export async function GET() {
       total_activity: totalActivity,
       sources: Array.from(sigData.sources),
       last_activity: sigData.last_activity,
-      top_requests: sigData.feature_requests.slice(0, 3),
+      top_requests: accountFRs,
     }
   }).sort((a, b) => b.total_activity - a.total_activity)
 

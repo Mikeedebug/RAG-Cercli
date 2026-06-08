@@ -17,7 +17,7 @@ type AccountData = {
   total_activity: number
   sources: string[]
   last_activity: string | null
-  top_requests: string[]
+  top_requests: { id: string; title: string; status: string }[]
 }
 
 type DashboardData = {
