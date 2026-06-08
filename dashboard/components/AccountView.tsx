@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import type { Signal } from '@/lib/supabase'
+import type { Signal } from '../lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
 
 type AccountData = {

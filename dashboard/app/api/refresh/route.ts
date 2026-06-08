@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
-import { fetchPylonIssues, fetchPylonIssueMessages } from '@/lib/pylon'
-import { fetchDemodeskRecordings, fetchDemodeskTranscript } from '@/lib/demodesk'
-import { extractSignals, generateInsightCards } from '@/lib/claude'
+import { supabase } from '../../../lib/supabase'
+import { fetchPylonIssues, fetchPylonIssueMessages } from '../../../lib/pylon'
+import { fetchDemodeskRecordings, fetchDemodeskTranscript } from '../../../lib/demodesk'
+import { extractSignals, generateInsightCards } from '../../../lib/claude'
 
 export const maxDuration = 300
 

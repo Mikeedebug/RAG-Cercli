@@ -1,6 +1,6 @@
 'use client'
 
-import type { InsightCard as InsightCardType } from '@/lib/supabase'
+import type { InsightCard as InsightCardType } from '../lib/supabase'
 import InsightCard from './InsightCard'
 
 type Props = {

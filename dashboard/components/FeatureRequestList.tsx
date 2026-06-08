@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
-import type { FeatureRequest } from '@/lib/supabase'
+import type { FeatureRequest } from '../lib/supabase'
 import StatusBadge from './StatusBadge'
 import { formatDistanceToNow } from 'date-fns'
 

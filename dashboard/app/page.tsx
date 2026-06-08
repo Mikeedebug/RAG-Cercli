@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import type { FeatureRequest, InsightCard, Signal } from '@/lib/supabase'
-import FeatureRequestList from '@/components/FeatureRequestList'
-import InsightFeed from '@/components/InsightFeed'
-import AccountView from '@/components/AccountView'
-import RefreshButton from '@/components/RefreshButton'
+import type { FeatureRequest, InsightCard, Signal } from '../lib/supabase'
+import FeatureRequestList from '../components/FeatureRequestList'
+import InsightFeed from '../components/InsightFeed'
+import AccountView from '../components/AccountView'
+import RefreshButton from '../components/RefreshButton'
 import { formatDistanceToNow } from 'date-fns'
 
 type AccountData = {

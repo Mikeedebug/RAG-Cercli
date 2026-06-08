@@ -1,6 +1,6 @@
 'use client'
 
-import type { InsightCard as InsightCardType } from '@/lib/supabase'
+import type { InsightCard as InsightCardType } from '../lib/supabase'
 import { formatDistanceToNow } from 'date-fns'
 
 const TYPE_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
