@@ -215,6 +215,8 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   const [merging, setMerging] = useState(false)
   // Sentiment drag state
   const [dragId, setDragId] = useState<string | null>(null)
+  const [dragType, setDragType] = useState<'sentiment' | 'fr'>('sentiment')
+  const [dragFRTitle, setDragFRTitle] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [showAddSentiment, setShowAddSentiment] = useState(false)
   const [newSentimentText, setNewSentimentText] = useState('')
@@ -320,12 +322,26 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   }
 
   // Sentiment handlers
-  const handleSentimentDrop = (e: React.DragEvent, sentiment: 'positive' | 'neutral' | 'negative') => {
+  const handleSentimentDrop = async (e: React.DragEvent, sentiment: 'positive' | 'neutral' | 'negative') => {
     e.preventDefault()
-    if (!dragId) return
-    setSentimentItems((prev) => prev.map((item) => item.id === dragId ? { ...item, sentiment } : item))
-    fetch(`/api/sentiment/${dragId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentiment }) })
-    setDragId(null); setDragOver(null)
+    setDragOver(null)
+    if (dragType === 'fr' && dragFRTitle) {
+      // FR row dropped into sentiment column → create new sentiment item
+      const alreadyExists = sentimentItems.some((i) => i.text === dragFRTitle && i.sentiment === sentiment)
+      if (!alreadyExists) {
+        const res = await fetch('/api/sentiment', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account_name: accountName, text: dragFRTitle, sentiment }) })
+        if (res.ok) {
+          const item = await res.json()
+          setSentimentItems((prev) => [...prev, item])
+        }
+      }
+    } else if (dragType === 'sentiment' && dragId) {
+      // Sentiment item moved to a different column
+      setSentimentItems((prev) => prev.map((item) => item.id === dragId ? { ...item, sentiment } : item))
+      fetch(`/api/sentiment/${dragId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sentiment }) })
+    }
+    setDragId(null); setDragFRTitle(null)
   }
 
   const addSentimentItem = async () => {
@@ -436,7 +452,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                       {colItems.map((item) => (
                         <div key={item.id}
                           draggable
-                          onDragStart={() => setDragId(item.id)}
+                          onDragStart={() => { setDragType('sentiment'); setDragId(item.id) }}
                           className="bg-white rounded-lg px-3 py-2 text-xs text-gray-700 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing flex items-start gap-2 group/item">
                           <span className="flex-1 leading-relaxed">{item.text}</span>
                           <button onClick={() => deleteSentimentItem(item.id)}
@@ -531,7 +547,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                     <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Date</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-12">Src</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-32">Category</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold">Pain Point</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold min-w-[200px]">Pain Point</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Brought by</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Importance</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-28">Status</th>
@@ -542,7 +558,10 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                 </thead>
                 <tbody>
                   {sortedFrs.map((fr, i) => (
-                    <tr key={fr.title} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
+                    <tr key={fr.title}
+                      draggable
+                      onDragStart={() => { setDragType('fr'); setDragFRTitle(fr.title) }}
+                      className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group cursor-grab active:cursor-grabbing ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
                       <td className="px-3 py-2 text-xs text-gray-400">{i + 1}</td>
                       <td className="px-3 py-2 text-center">
                         <RankCell value={fr.rank} onSave={(v) => updateFR(fr.title, 'rank', v)} />
@@ -559,7 +578,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                         <CategoryCell value={fr.category} title={fr.title} frId={fr.id || fr.title}
                           onSave={(v) => updateFR(fr.title, 'category', v)} />
                       </td>
-                      <td className="px-3 py-2 font-medium text-gray-900 leading-snug text-xs">{fr.title}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900 leading-snug text-xs min-w-[200px]">{fr.title}</td>
                       <td className="px-3 py-2">
                         <EditCell value={fr.reporter} placeholder="Who?" onSave={(v) => updateFR(fr.title, 'reporter', v)} />
                       </td>
