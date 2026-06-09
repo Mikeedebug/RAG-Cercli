@@ -8,9 +8,11 @@ import RefreshButton from '../components/RefreshButton'
 type RadarRow = {
   title: string
   category: string | null
+  importance: string
   account_count: number
   accounts: string[]
   affected_acv: number
+  weight: number
   status: string
 }
 
@@ -28,6 +30,33 @@ function statusColor(status: string): string {
   if (s === 'planned') return 'bg-blue-100 text-blue-700'
   if (s === 'notstarted' || s === 'underreview') return 'bg-red-100 text-red-700'
   return 'bg-gray-100 text-gray-400'
+}
+
+const IMPORTANCE_LABEL: Record<string, { label: string; classes: string }> = {
+  high: { label: 'High', classes: 'bg-red-100 text-red-700' },
+  mid:  { label: 'Mid',  classes: 'bg-yellow-100 text-yellow-700' },
+  low:  { label: 'Low',  classes: 'bg-gray-100 text-gray-500' },
+}
+
+function ImportanceCell({ title, value, onChange }: { title: string; value: string; onChange: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [imp, setImp] = useState(value ?? 'mid')
+  useEffect(() => { setImp(value ?? 'mid') }, [value])
+
+  if (editing) return (
+    <select value={imp} autoFocus onBlur={() => setEditing(false)}
+      onChange={(e) => { const v = e.target.value; setImp(v); onChange(v); setEditing(false) }}
+      className="text-xs border border-indigo-300 rounded px-1 py-0.5 focus:outline-none">
+      {['high', 'mid', 'low'].map((v) => <option key={v} value={v}>{IMPORTANCE_LABEL[v].label}</option>)}
+    </select>
+  )
+  const { label, classes } = IMPORTANCE_LABEL[imp] ?? IMPORTANCE_LABEL.mid
+  return (
+    <button onClick={() => setEditing(true)} title="Click to change importance"
+      className={`text-xs font-medium px-2 py-0.5 rounded-full ${classes} hover:opacity-80 transition-opacity`}>
+      {label}
+    </button>
+  )
 }
 
 function CategoryCell({ title, value, onChange }: { title: string; value: string | null; onChange: (v: string) => void }) {
@@ -108,9 +137,24 @@ export default function HomePage() {
 
   useEffect(() => { load() }, [])
 
+  const IMPORTANCE_SCORE: Record<string, number> = { high: 20, mid: 10, low: 5 }
+
   const updateCategory = (title: string, category: string) => {
     setRows((prev) => prev.map((r) => r.title === title ? { ...r, category } : r))
     fetch('/api/radar/category', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feature_request: title, category }) })
+  }
+
+  const updateImportance = (title: string, importance: string) => {
+    setRows((prev) => {
+      const updated = prev.map((r) => {
+        if (r.title !== title) return r
+        const tierABonus = r.weight >= 50 ? 50 : 0  // preserve tier bonus
+        const multiBonus = r.account_count > 1 ? 30 : 0
+        return { ...r, importance, weight: tierABonus + multiBonus + (IMPORTANCE_SCORE[importance] ?? 10) }
+      })
+      return [...updated].sort((a, b) => b.weight - a.weight || b.account_count - a.account_count || b.affected_acv - a.affected_acv)
+    })
+    fetch('/api/radar/importance', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feature_request: title, importance }) })
   }
 
   const toggleMergeSelect = (title: string) => {
@@ -252,8 +296,10 @@ export default function HomePage() {
               <tr className="bg-gray-50 border-b border-gray-200">
                 {mergeMode && <th className="w-8 px-3 py-3" />}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 w-8">#</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 w-20">Weight</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 w-44">Category</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Pain Point</th>
+                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 w-24">Importance</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 w-28"># Customers</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 w-28">Affected ACV</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 w-32">Status</th>
@@ -274,10 +320,16 @@ export default function HomePage() {
                       </td>
                     )}
                     <td className="px-4 py-3 text-xs text-gray-400">{i + 1}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-sm font-bold text-indigo-700">{row.weight}</span>
+                    </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <CategoryCell title={row.title} value={row.category} onChange={(v) => updateCategory(row.title, v)} />
                     </td>
                     <td className="px-4 py-3 font-medium text-gray-900">{row.title}</td>
+                    <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                      <ImportanceCell title={row.title} value={row.importance} onChange={(v) => updateImportance(row.title, v)} />
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <AccountDrilldown accounts={row.accounts} />
                     </td>
@@ -292,7 +344,7 @@ export default function HomePage() {
                   </tr>
                 )
               })}
-              {filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">No results</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">No results</td></tr>}
             </tbody>
           </table>
         </div>
