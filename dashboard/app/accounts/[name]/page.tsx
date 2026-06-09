@@ -273,11 +273,16 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
       body: JSON.stringify({ account_name: accountName, feature_request_title: card.title, is_active: true }) })
 
     if (!alreadyExists) {
+      const tierScore = account?.tier === 'A' ? 4 : account?.tier === 'B' ? 3 : 1
+      const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth() - 1)
+      const recencyScore = card.signal_date && new Date(card.signal_date) > monthAgo ? 2 : 1
+      const autoWeight = Math.min(tierScore + recencyScore, 10)
+
       const newFR: FR = {
         id: '', title: card.title, status: 'pending', source: card.source ?? 'pylon',
         source_id: card.source_id ?? '', signal_date: card.signal_date,
         priority: null, estimated_release: null, comments: null, category: undefined,
-        reporter: null, weight: null,
+        reporter: null, weight: autoWeight,
       }
       setFrs((prev) => [newFR, ...prev])
       fetch('/api/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: card.title }) })
@@ -300,7 +305,8 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
       body: JSON.stringify({ feature_request: newFRTitle.trim(), note: newFRNote.trim() || undefined }),
     })
     if (res.ok) {
-      const newFR: FR = { id: '', title: newFRTitle.trim(), status: 'pending', source: 'manual', source_id: 'manual', signal_date: new Date().toISOString(), priority: null, estimated_release: null, comments: null, reporter: null, weight: null }
+      const tierScore2 = account?.tier === 'A' ? 4 : account?.tier === 'B' ? 3 : 1
+      const newFR: FR = { id: '', title: newFRTitle.trim(), status: 'pending', source: 'manual', source_id: 'manual', signal_date: new Date().toISOString(), priority: null, estimated_release: null, comments: null, reporter: null, weight: Math.min(tierScore2 + 2, 10) }
       setFrs((prev) => [newFR, ...prev])
       fetch('/api/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newFRTitle.trim() }) })
         .then((r) => r.json()).then((d) => {
