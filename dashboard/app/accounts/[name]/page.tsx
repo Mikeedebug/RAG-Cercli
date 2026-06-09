@@ -1,22 +1,81 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 type FR = { id: string; title: string; status: string; source: string; signal_date: string | null }
 type InsightCard = { id: string; title: string; body: string; source: string | null; signal_date: string | null; status: string }
 type AccountInfo = { name: string; tier: string | null; acv: number | null; pylon_id: string | null }
 
-const STATUS_OPTIONS = [
-  { value: 'under_review', label: 'Under Review', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'planned', label: 'Planned', color: 'bg-blue-100 text-blue-700' },
-  { value: 'in_progress', label: 'In Progress', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'shipped', label: 'Shipped', color: 'bg-green-100 text-green-700' },
-  { value: 'wont_do', label: "Won't Do", color: 'bg-gray-100 text-gray-600' },
-]
+const PRESET_STATUSES = ['Under Review', 'Planned', 'In Progress', 'Shipped', "Won't Do"]
 
 function statusColor(status: string): string {
-  return STATUS_OPTIONS.find((o) => o.value === status)?.color ?? 'bg-gray-100 text-gray-600'
+  const s = status.toLowerCase().replace(/[^a-z]/g, '')
+  if (s === 'planned') return 'bg-blue-100 text-blue-700'
+  if (s === 'inprogress') return 'bg-indigo-100 text-indigo-700'
+  if (s === 'shipped') return 'bg-green-100 text-green-700'
+  if (s === 'underreview') return 'bg-yellow-100 text-yellow-700'
+  if (s === 'wontdo') return 'bg-gray-100 text-gray-500'
+  if (!status || status === 'pending') return 'bg-gray-100 text-gray-400'
+  return 'bg-purple-100 text-purple-700'
+}
+
+function StatusEditor({ frId, status, onChange }: { frId: string; status: string; onChange: (id: string, val: string) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(status)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (editing) inputRef.current?.focus() }, [editing])
+  useEffect(() => { setDraft(status) }, [status])
+
+  function commit(val: string) {
+    setEditing(false)
+    if (val.trim() && val.trim() !== status) onChange(frId, val.trim())
+    else setDraft(status)
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className={`text-xs font-medium px-2 py-0.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity ${statusColor(status)}`}
+        title="Click to edit status"
+      >
+        {status && status !== 'pending' ? status : 'Set status'}
+      </button>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => {
+          if (!e.relatedTarget?.closest?.('[data-preset]')) commit(draft)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(draft)
+          if (e.key === 'Escape') { setEditing(false); setDraft(status) }
+        }}
+        className="text-xs font-medium px-2 py-0.5 rounded-lg border border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 w-32"
+        placeholder="Type status…"
+      />
+      <div className="absolute top-full mt-1 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 py-1 min-w-max">
+        {PRESET_STATUSES.map((p) => (
+          <button
+            key={p}
+            data-preset="true"
+            onMouseDown={(e) => { e.preventDefault(); commit(p) }}
+            className="block w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 text-gray-700"
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function sourceBadge(source: string | null) {
@@ -172,18 +231,10 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {sourceBadge(fr.source)}
                     {fr.id ? (
-                      <select
-                        value={fr.status}
-                        onChange={(e) => handleStatusChange(fr.id, e.target.value)}
-                        className={`text-xs font-medium px-2 py-1 rounded-lg border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-300 ${statusColor(fr.status)}`}
-                      >
-                        {STATUS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
+                      <StatusEditor frId={fr.id} status={fr.status} onChange={handleStatusChange} />
                     ) : (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusColor(fr.status)}`}>
-                        {STATUS_OPTIONS.find((o) => o.value === fr.status)?.label ?? fr.status}
+                        {fr.status}
                       </span>
                     )}
                   </div>
