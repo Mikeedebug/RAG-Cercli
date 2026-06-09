@@ -78,7 +78,7 @@ function StatusEditor({ frId, status, onChange }: { frId: string; status: string
   )
 }
 
-function sourceBadge(source: string | null, sourceId?: string) {
+function sourceBadge(source: string | null, sourceId?: string | null) {
   if (source === 'demodesk') {
     return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Meeting call</span>
   }
