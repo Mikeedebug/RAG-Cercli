@@ -549,8 +549,8 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="bg-[#7ab648] text-white">
-                    <th className="text-center px-2 py-3 text-xs font-semibold w-10 whitespace-nowrap">Weight</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-20 whitespace-nowrap">Date</th>
+                    <th className="text-center px-3 py-3 text-xs font-semibold w-16 whitespace-nowrap">Weight</th>
+                    <th className="text-left px-3 py-3 text-xs font-semibold w-24 whitespace-nowrap">Date</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-12 whitespace-nowrap">Src</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-28 whitespace-nowrap">Category</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold whitespace-nowrap">Pain Point</th>
@@ -567,10 +567,10 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                       draggable
                       onDragStart={() => { setDragType('fr'); setDragFRTitle(fr.title) }}
                       className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group cursor-grab active:cursor-grabbing ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
-                      <td className="px-2 py-2 text-center">
+                      <td className="px-3 py-2 text-center">
                         <WeightCell value={fr.weight} onSave={(v) => updateFR(fr.title, 'rank', v)} />
                       </td>
-                      <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
                         <EditCell value={fr.signal_date ? formatDate(fr.signal_date) : null} placeholder="Date…"
                           onSave={(v) => updateFR(fr.title, 'fr_date', v)} />
                       </td>
