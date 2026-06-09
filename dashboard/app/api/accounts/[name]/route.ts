@@ -77,7 +77,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
       comments: meta.comments ?? null,
       category: sig?.category ?? undefined,
       reporter: meta.reporter ?? null,
-      rank,
+      weight: rank,
     }
   })
 

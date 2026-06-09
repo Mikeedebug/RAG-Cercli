@@ -123,21 +123,23 @@ function WeightCell({ value, onSave }: { value: number | null; onSave: (v: numbe
   useEffect(() => { setDraft(String(value ?? '')) }, [value])
   function commit() {
     setEditing(false)
-    const n = draft === '' ? null : Math.min(10, Math.max(1, parseInt(draft, 10)))
-    if (!isNaN(n as number) || n === null) onSave(n)
+    const parsed = parseInt(draft, 10)
+    const n = draft.trim() === '' || isNaN(parsed) ? null : Math.min(10, Math.max(1, parsed))
+    onSave(n)
   }
+  const color = value == null ? 'text-gray-300' : value >= 8 ? 'text-red-600' : value >= 5 ? 'text-yellow-600' : 'text-green-600'
   if (!editing) return (
     <button onClick={() => { setDraft(String(value ?? '')); setEditing(true) }}
-      className="text-xs font-bold text-indigo-700 hover:bg-indigo-50 rounded px-1 py-0.5 w-full text-center transition-colors">
+      className={`text-xs font-bold hover:bg-indigo-50 rounded px-1 py-0.5 w-full text-center transition-colors ${color}`}>
       {value ?? '—'}
     </button>
   )
   return (
-    <input ref={ref} type="number" min={1} max={10} value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+    <input ref={ref} type="text" inputMode="numeric" value={draft}
+      onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ''))}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
-      className="text-xs border border-indigo-300 rounded px-1 py-0.5 w-14 focus:outline-none text-center" />
+      className="text-xs border border-indigo-300 rounded px-1 py-0.5 w-10 focus:outline-none text-center" />
   )
 }
 
