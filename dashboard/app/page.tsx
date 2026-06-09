@@ -115,6 +115,7 @@ export default function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
+  const [sortBy, setSortBy] = useState<'importance' | 'category'>('importance')
 
   // Merge state
   const [mergeMode, setMergeMode] = useState(false)
@@ -197,12 +198,24 @@ export default function HomePage() {
     setMerging(false); setShowMergeDialog(false); setMergeMode(false); setMergeSelected([])
   }
 
+  const IMPORTANCE_ORDER: Record<string, number> = { high: 0, mid: 1, low: 2 }
+
   const categories = ['All', ...Array.from(new Set(rows.map((r) => r.category ?? 'OTHER'))).sort()]
-  const filtered = rows.filter((r) => {
-    if (search && !r.title.toLowerCase().includes(search.toLowerCase())) return false
-    if (categoryFilter !== 'All' && (r.category ?? 'OTHER') !== categoryFilter) return false
-    return true
-  })
+  const filtered = rows
+    .filter((r) => {
+      if (search && !r.title.toLowerCase().includes(search.toLowerCase())) return false
+      if (categoryFilter !== 'All' && (r.category ?? 'OTHER') !== categoryFilter) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (sortBy === 'category') {
+        const ca = a.category ?? 'OTHER'
+        const cb = b.category ?? 'OTHER'
+        return ca.localeCompare(cb) || b.weight - a.weight
+      }
+      // importance: sort by weight desc (weight already encodes importance + tier + multi-customer)
+      return b.weight - a.weight || (IMPORTANCE_ORDER[a.importance] ?? 1) - (IMPORTANCE_ORDER[b.importance] ?? 1)
+    })
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" /></div>
 
@@ -277,6 +290,16 @@ export default function HomePage() {
                 {c !== 'All' ? `${CATEGORY_EMOJI[c] ?? '📌'} ${c}` : `All (${rows.length})`}
               </button>
             ))}
+          </div>
+          <div className="flex items-center gap-1 flex-shrink-0 bg-gray-100 rounded-lg p-0.5">
+            <button onClick={() => setSortBy('importance')}
+              className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'importance' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Importance
+            </button>
+            <button onClick={() => setSortBy('category')}
+              className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'category' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              Category
+            </button>
           </div>
           <button onClick={() => { setMergeMode(!mergeMode); setMergeSelected([]) }}
             className={`text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors flex-shrink-0 ${mergeMode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>

@@ -137,6 +137,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   const [newFRTitle, setNewFRTitle] = useState('')
   const [newFRNote, setNewFRNote] = useState('')
   const [addingFR, setAddingFR] = useState(false)
+  const [sortBy, setSortBy] = useState<'importance' | 'category'>('importance')
   const [mergeMode, setMergeMode] = useState(false)
   const [mergeSelected, setMergeSelected] = useState<string[]>([])
   const [mergeBody, setMergeBody] = useState('')
@@ -226,6 +227,18 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
     setMerging(false); setMergeMode(false); setMergeSelected([]); setShowMergeEditor(false)
   }
 
+  const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+
+  const sortedFrs = [...frs].sort((a, b) => {
+    if (sortBy === 'category') {
+      const ca = a.category ?? 'OTHER'
+      const cb = b.category ?? 'OTHER'
+      return ca.localeCompare(cb) || (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
+    }
+    // importance
+    return (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
+  })
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" /></div>
 
   return (
@@ -253,9 +266,21 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               Feature Requests
               {frs.length > 0 && <span className="ml-2 text-gray-400 font-normal normal-case text-xs">({frs.length}) — click any cell to edit</span>}
             </h2>
-            <button onClick={() => setShowAddFR(!showAddFR)} className="text-xs font-medium px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
-              {showAddFR ? 'Cancel' : '+ Add'}
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                <button onClick={() => setSortBy('importance')}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'importance' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  Importance
+                </button>
+                <button onClick={() => setSortBy('category')}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'category' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  Category
+                </button>
+              </div>
+              <button onClick={() => setShowAddFR(!showAddFR)} className="text-xs font-medium px-3 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors">
+                {showAddFR ? 'Cancel' : '+ Add'}
+              </button>
+            </div>
           </div>
 
           {showAddFR && (
@@ -287,7 +312,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                 </tr>
               </thead>
               <tbody>
-                {frs.map((fr, i) => (
+                {sortedFrs.map((fr, i) => (
                   <tr key={fr.title} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
                     <td className="px-3 py-2 text-xs text-gray-400">{i + 1}</td>
                     <td className="px-3 py-2">{sourceBadge(fr.source, fr.source_id)}</td>
