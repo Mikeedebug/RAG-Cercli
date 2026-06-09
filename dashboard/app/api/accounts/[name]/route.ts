@@ -43,18 +43,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
 
   const acc = accountRes.data
   const tier = acc?.tier ?? null
-  const tierScore = tier === 'A' ? 50 : tier === 'B' ? 30 : 10
+  const tierScore = tier === 'A' ? 5 : tier === 'B' ? 3 : 1
+
+  const now = new Date()
+  const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
 
   const featureRequests = metaList.map((meta) => {
     const key = meta.feature_request_title.toLowerCase()
     const sig = signalByFR[key]
     const fr = frByTitle[key]
 
+    const signalDate = meta.fr_date ?? sig?.signal_date ?? null
+
     let rank = meta.rank ?? null
     if (rank === null) {
       const crossCount = crossCountByFR[key] ?? 1
-      const crossScore = Math.min((crossCount - 1) * 15, 40)
-      rank = Math.min(Math.max(tierScore + crossScore, 1), 100)
+      const crossScore = crossCount > 1 ? 3 : 0
+      const recencyScore = signalDate && new Date(signalDate) > monthAgo ? 2 : 1
+      rank = Math.min(tierScore + crossScore + recencyScore, 10)
     }
 
     return {
@@ -63,7 +69,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
       status: fr?.status ?? 'pending',
       source: sig?.source ?? 'manual',
       source_id: sig?.source_id ?? '',
-      signal_date: meta.fr_date ?? sig?.signal_date ?? null,
+      signal_date: signalDate,
       priority: meta.priority ?? null,
       estimated_release: meta.estimated_release ?? null,
       comments: meta.comments ?? null,

@@ -123,7 +123,7 @@ function RankCell({ value, onSave }: { value: number | null; onSave: (v: number 
   useEffect(() => { setDraft(String(value ?? '')) }, [value])
   function commit() {
     setEditing(false)
-    const n = draft === '' ? null : Math.min(100, Math.max(1, parseInt(draft, 10)))
+    const n = draft === '' ? null : Math.min(10, Math.max(1, parseInt(draft, 10)))
     if (!isNaN(n as number) || n === null) onSave(n)
   }
   if (!editing) return (
@@ -133,7 +133,7 @@ function RankCell({ value, onSave }: { value: number | null; onSave: (v: number 
     </button>
   )
   return (
-    <input ref={ref} type="number" min={1} max={100} value={draft}
+    <input ref={ref} type="number" min={1} max={10} value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
@@ -205,7 +205,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   const [newFRTitle, setNewFRTitle] = useState('')
   const [newFRNote, setNewFRNote] = useState('')
   const [addingFR, setAddingFR] = useState(false)
-  const [sortBy, setSortBy] = useState<'importance' | 'category'>('importance')
+  const [sortBy, setSortBy] = useState<'importance' | 'category' | 'rank'>('rank')
   const [channelFilter, setChannelFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
   const [mergeMode, setMergeMode] = useState(false)
@@ -377,6 +377,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
       return true
     })
     .sort((a, b) => {
+      if (sortBy === 'rank') return (b.rank ?? 0) - (a.rank ?? 0)
       if (sortBy === 'category') {
         const ca = a.category ?? 'OTHER'; const cb = b.category ?? 'OTHER'
         return ca.localeCompare(cb) || (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
@@ -480,9 +481,13 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               </h2>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                  <button onClick={() => setSortBy('rank')}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'rank' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    Rank
+                  </button>
                   <button onClick={() => setSortBy('importance')}
                     className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'importance' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                    Importance
+                    Priority
                   </button>
                   <button onClick={() => setSortBy('category')}
                     className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'category' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -538,21 +543,19 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               </div>
             )}
 
-            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="bg-white rounded-xl border border-gray-200">
+              <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="bg-[#7ab648] text-white">
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-6">#</th>
-                    <th className="text-center px-2 py-3 text-xs font-semibold w-12">Rank</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Date</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-12">Src</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-32">Category</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold min-w-[200px]">Pain Point</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Brought by</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Importance</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-28">Status</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-16 whitespace-nowrap">Release</th>
-                    <th className="text-left px-2 py-3 text-xs font-semibold w-36">Comments</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold w-10 whitespace-nowrap">Rank</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-20 whitespace-nowrap">Date</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-12 whitespace-nowrap">Src</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-28 whitespace-nowrap">Category</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold whitespace-nowrap">Pain Point</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-20 whitespace-nowrap">By</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-20 whitespace-nowrap">Priority</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Status</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-32 whitespace-nowrap">Comments</th>
                     <th className="w-6" />
                   </tr>
                 </thead>
@@ -562,45 +565,41 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                       draggable
                       onDragStart={() => { setDragType('fr'); setDragFRTitle(fr.title) }}
                       className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group cursor-grab active:cursor-grabbing ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
-                      <td className="px-3 py-2 text-xs text-gray-400">{i + 1}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-2 py-2 text-center">
                         <RankCell value={fr.rank} onSave={(v) => updateFR(fr.title, 'rank', v)} />
                       </td>
-                      <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
+                      <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">
                         <EditCell value={fr.signal_date ? formatDate(fr.signal_date) : null} placeholder="Date…"
                           onSave={(v) => updateFR(fr.title, 'fr_date', v)} />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <SrcCell source={fr.source} sourceId={fr.source_id} title={fr.title} accountName={accountName}
                           onSave={(v) => updateFR(fr.title, 'source', v)} />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <CategoryCell value={fr.category} title={fr.title} frId={fr.id || fr.title}
                           onSave={(v) => updateFR(fr.title, 'category', v)} />
                       </td>
-                      <td className="px-3 py-2 font-medium text-gray-900 leading-snug text-xs min-w-[200px]">{fr.title}</td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2 font-medium text-gray-900 leading-snug text-xs">{fr.title}</td>
+                      <td className="px-2 py-2">
                         <EditCell value={fr.reporter} placeholder="Who?" onSave={(v) => updateFR(fr.title, 'reporter', v)} />
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <select value={fr.priority ?? ''} onChange={(e) => updateFR(fr.title, 'priority', e.target.value)}
-                          className={`text-xs font-medium px-2 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none ${priorityColor(fr.priority)}`}>
+                          className={`text-xs font-medium px-1.5 py-0.5 rounded-full border-0 cursor-pointer focus:outline-none ${priorityColor(fr.priority)}`}>
                           <option value="">—</option>
                           <option value="High">High</option>
                           <option value="Medium">Medium</option>
                           <option value="Low">Low</option>
                         </select>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <StatusCell value={fr.status} onSave={(v) => updateFR(fr.title, 'status', v)} />
                       </td>
-                      <td className="px-3 py-2">
-                        <EditCell value={fr.estimated_release} placeholder="TBC" onSave={(v) => updateFR(fr.title, 'estimated_release', v)} />
-                      </td>
-                      <td className="px-3 py-2">
+                      <td className="px-2 py-2">
                         <EditCell value={fr.comments} placeholder="Add comment…" onSave={(v) => updateFR(fr.title, 'comments', v)} multiline />
                       </td>
-                      <td className="px-2 py-2 text-center">
+                      <td className="px-1 py-2 text-center">
                         <button onClick={() => deleteFR(fr.title)}
                           className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-sm leading-none"
                           title="Remove from this account">
@@ -610,7 +609,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                     </tr>
                   ))}
                   {frs.length === 0 && (
-                    <tr><td colSpan={12} className="px-4 py-10 text-center text-sm text-gray-400">No feature requests yet — approve insights from the right panel to add them.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-gray-400">No feature requests yet — approve insights from the right panel to add them.</td></tr>
                   )}
                 </tbody>
               </table>
