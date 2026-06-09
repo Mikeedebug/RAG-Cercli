@@ -3,7 +3,7 @@ import { supabase } from '../../../lib/supabase'
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  const { account_name, feature_request_title, priority, estimated_release, comments } = body
+  const { account_name, feature_request_title, priority, estimated_release, comments, reporter, rank, fr_date, is_active } = body
 
   if (!account_name || !feature_request_title) {
     return NextResponse.json({ error: 'account_name and feature_request_title required' }, { status: 400 })
@@ -13,6 +13,10 @@ export async function PATCH(req: NextRequest) {
   if (priority !== undefined) updates.priority = priority
   if (estimated_release !== undefined) updates.estimated_release = estimated_release
   if (comments !== undefined) updates.comments = comments
+  if (reporter !== undefined) updates.reporter = reporter
+  if (rank !== undefined) updates.rank = rank === '' ? null : Number(rank)
+  if (fr_date !== undefined) updates.fr_date = fr_date || null
+  if (is_active !== undefined) updates.is_active = is_active
 
   const { data, error } = await supabase
     .from('account_fr_meta')

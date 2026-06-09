@@ -5,51 +5,74 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
   const { name } = await params
   const accountName = decodeURIComponent(name)
 
-  const [accountRes, signalsRes, insightCardsRes, allFRsRes, metaRes] = await Promise.all([
+  const [accountRes, signalsRes, insightCardsRes, allFRsRes, metaRes, sentimentRes] = await Promise.all([
     supabase.from('accounts').select('name, tier, acv, pylon_id').eq('name', accountName).single(),
     supabase.from('signals').select('*').eq('account_name', accountName).order('signal_date', { ascending: false }),
     supabase.from('insight_cards').select('*').eq('related_account', accountName).eq('status', 'pending'),
     supabase.from('feature_requests').select('id, title, status'),
-    supabase.from('account_fr_meta').select('*').eq('account_name', accountName),
+    supabase.from('account_fr_meta').select('*').eq('account_name', accountName).eq('is_active', true),
+    supabase.from('sentiment_items').select('*').eq('account_name', accountName).order('position'),
   ])
 
   const signals = signalsRes.data ?? []
   const allFRs: { id: string; title: string; status: string }[] = allFRsRes.data ?? []
-  const metaList: { feature_request_title: string; priority: string | null; estimated_release: string | null; comments: string | null }[] = metaRes.data ?? []
+  const metaList = metaRes.data ?? []
 
   const frByTitle: Record<string, { id: string; status: string }> = {}
   for (const fr of allFRs) frByTitle[fr.title.toLowerCase()] = { id: fr.id, status: fr.status }
 
-  const metaByTitle: Record<string, { priority: string | null; estimated_release: string | null; comments: string | null }> = {}
-  for (const m of metaList) metaByTitle[m.feature_request_title.toLowerCase()] = m
-
-  const seen = new Set<string>()
-  const featureRequests: {
-    id: string; title: string; status: string; source: string; source_id: string; signal_date: string | null;
-    priority: string | null; estimated_release: string | null; comments: string | null; category?: string
-  }[] = []
-
+  const signalByFR: Record<string, typeof signals[0]> = {}
   for (const sig of signals) {
     const key = sig.feature_request.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    const fr = frByTitle[key]
-    const meta = metaByTitle[key]
-    featureRequests.push({
-      id: fr?.id ?? '',
-      title: sig.feature_request,
-      status: fr?.status ?? 'pending',
-      source: sig.source,
-      source_id: sig.source_id ?? '',
-      signal_date: sig.signal_date ?? null,
-      priority: meta?.priority ?? null,
-      estimated_release: meta?.estimated_release ?? null,
-      comments: meta?.comments ?? null,
-      category: sig.category ?? undefined,
-    })
+    if (!signalByFR[key]) signalByFR[key] = sig
+  }
+
+  // Compute cross-account counts for auto-rank
+  const frTitles = metaList.map((m) => m.feature_request_title)
+  const crossCountByFR: Record<string, number> = {}
+  if (frTitles.length > 0) {
+    const crossRes = await supabase.from('signals').select('feature_request, account_name').in('feature_request', frTitles)
+    const accountSets: Record<string, Set<string>> = {}
+    for (const s of crossRes.data ?? []) {
+      const key = s.feature_request.toLowerCase()
+      if (!accountSets[key]) accountSets[key] = new Set()
+      accountSets[key].add(s.account_name)
+    }
+    for (const [k, v] of Object.entries(accountSets)) crossCountByFR[k] = v.size
   }
 
   const acc = accountRes.data
+  const tier = acc?.tier ?? null
+  const tierScore = tier === 'A' ? 50 : tier === 'B' ? 30 : 10
+
+  const featureRequests = metaList.map((meta) => {
+    const key = meta.feature_request_title.toLowerCase()
+    const sig = signalByFR[key]
+    const fr = frByTitle[key]
+
+    let rank = meta.rank ?? null
+    if (rank === null) {
+      const crossCount = crossCountByFR[key] ?? 1
+      const crossScore = Math.min((crossCount - 1) * 15, 40)
+      rank = Math.min(Math.max(tierScore + crossScore, 1), 100)
+    }
+
+    return {
+      id: fr?.id ?? '',
+      title: meta.feature_request_title,
+      status: fr?.status ?? 'pending',
+      source: sig?.source ?? 'manual',
+      source_id: sig?.source_id ?? '',
+      signal_date: meta.fr_date ?? sig?.signal_date ?? null,
+      priority: meta.priority ?? null,
+      estimated_release: meta.estimated_release ?? null,
+      comments: meta.comments ?? null,
+      category: sig?.category ?? undefined,
+      reporter: meta.reporter ?? null,
+      rank,
+    }
+  })
+
   const account = acc
     ? { name: acc.name, tier: acc.tier ?? null, acv: acc.acv ?? null, pylon_id: acc.pylon_id ?? null }
     : { name: accountName, tier: null, acv: null, pylon_id: null }
@@ -60,7 +83,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     signal_date: c.signal_date ?? null, status: c.status,
   }))
 
-  return NextResponse.json({ account, feature_requests: featureRequests, insight_cards: insightCards })
+  return NextResponse.json({
+    account,
+    feature_requests: featureRequests,
+    insight_cards: insightCards,
+    sentiment_items: sentimentRes.data ?? [],
+  })
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ name: string }> }) {
@@ -85,5 +113,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ nam
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Mark as active in fr_meta so it appears on the left panel
+  await supabase.from('account_fr_meta').upsert(
+    { account_name: accountName, feature_request_title: feature_request, is_active: true },
+    { onConflict: 'account_name,feature_request_title' }
+  )
+
   return NextResponse.json(data, { status: 201 })
 }
