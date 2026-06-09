@@ -378,8 +378,11 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
     return 'Slack'
   }
 
+  const pendingInsightTitles = new Set(cards.map((c) => c.title.toLowerCase()))
+
   const sortedFrs = [...frs]
     .filter((fr) => {
+      if (pendingInsightTitles.has(fr.title.toLowerCase())) return false
       if (channelFilter !== 'All' && frChannel(fr) !== channelFilter) return false
       if (priorityFilter !== 'All' && (fr.priority ?? '') !== priorityFilter) return false
       return true
