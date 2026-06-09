@@ -15,11 +15,8 @@ type SortDir = 'asc' | 'desc'
 const TIER_ORDER: Record<string, number> = { A: 0, B: 1, C: 2 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  return (
-    <span className={`ml-1 inline-block text-[10px] ${active ? 'text-indigo-600' : 'text-gray-300'}`}>
-      {active ? (dir === 'asc' ? '▲' : '▼') : '⇅'}
-    </span>
-  )
+  if (!active) return <span className="ml-0.5 text-[9px] text-gray-300 group-hover:text-gray-400">↕</span>
+  return <span className="ml-0.5 text-[9px] text-indigo-500">{dir === 'asc' ? '▲' : '▼'}</span>
 }
 
 export default function AccountsPage() {
@@ -71,9 +68,9 @@ export default function AccountsPage() {
     })
 
   function thClass(key: SortKey, align: 'left' | 'right' | 'center' = 'left') {
-    const base = `px-4 py-3 text-xs font-semibold cursor-pointer select-none hover:text-indigo-600 transition-colors`
+    const base = `px-4 py-3 text-xs font-semibold cursor-pointer select-none group transition-colors`
     const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-    const active = sortKey === key ? 'text-indigo-600' : 'text-gray-500'
+    const active = sortKey === key ? 'text-indigo-600' : 'text-gray-500 hover:text-gray-700'
     return `${base} ${textAlign} ${active}`
   }
 
@@ -122,11 +119,7 @@ export default function AccountsPage() {
                 <tr key={a.account_name} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => window.location.href = `/accounts/${encodeURIComponent(a.account_name)}`}>
                   <td className="px-4 py-3 font-medium text-gray-900">{a.account_name}</td>
-                  <td className="px-4 py-3 text-xs">
-                    {a.tier
-                      ? <span className="font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{a.tier}</span>
-                      : <span className="text-gray-300">—</span>}
-                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{a.tier ?? '—'}</td>
                   <td className="px-4 py-3 text-right text-sm text-gray-700">{a.acv ? `$${a.acv.toLocaleString()}` : '—'}</td>
                   <td className="px-4 py-3 text-center text-sm text-gray-700">{a.signal_count || '—'}</td>
                   <td className="px-4 py-3 text-center">
