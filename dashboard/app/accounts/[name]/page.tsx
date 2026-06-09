@@ -138,6 +138,8 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   const [newFRNote, setNewFRNote] = useState('')
   const [addingFR, setAddingFR] = useState(false)
   const [sortBy, setSortBy] = useState<'importance' | 'category'>('importance')
+  const [channelFilter, setChannelFilter] = useState('All')
+  const [priorityFilter, setPriorityFilter] = useState('All')
   const [mergeMode, setMergeMode] = useState(false)
   const [mergeSelected, setMergeSelected] = useState<string[]>([])
   const [mergeBody, setMergeBody] = useState('')
@@ -228,16 +230,31 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   }
 
   const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
+  const CHANNELS = ['All', 'Call', 'Slack', 'NPS']
+  const PRIORITY_LEVELS = ['All', 'High', 'Medium', 'Low']
 
-  const sortedFrs = [...frs].sort((a, b) => {
-    if (sortBy === 'category') {
-      const ca = a.category ?? 'OTHER'
-      const cb = b.category ?? 'OTHER'
-      return ca.localeCompare(cb) || (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
-    }
-    // importance
-    return (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
-  })
+  function frChannel(fr: FR): string {
+    if (fr.source === 'demodesk') return 'Call'
+    if (fr.source_id?.includes('nps')) return 'NPS'
+    if (fr.source === 'manual') return 'Manual'
+    return 'Slack'
+  }
+
+  const sortedFrs = [...frs]
+    .filter((fr) => {
+      if (channelFilter !== 'All' && frChannel(fr) !== channelFilter) return false
+      if (priorityFilter !== 'All' && (fr.priority ?? '') !== priorityFilter) return false
+      return true
+    })
+    .sort((a, b) => {
+      if (sortBy === 'category') {
+        const ca = a.category ?? 'OTHER'
+        const cb = b.category ?? 'OTHER'
+        return ca.localeCompare(cb) || (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
+      }
+      // importance
+      return (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
+    })
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" /></div>
 
@@ -261,12 +278,12 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
 
         {/* LEFT: Feature Requests Table */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
               Feature Requests
-              {frs.length > 0 && <span className="ml-2 text-gray-400 font-normal normal-case text-xs">({frs.length}) — click any cell to edit</span>}
+              {frs.length > 0 && <span className="ml-2 text-gray-400 font-normal normal-case text-xs">({sortedFrs.length}/{frs.length}) — click any cell to edit</span>}
             </h2>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
                 <button onClick={() => setSortBy('importance')}
                   className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'importance' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -281,6 +298,38 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                 {showAddFR ? 'Cancel' : '+ Add'}
               </button>
             </div>
+          </div>
+
+          {/* Channel + Priority filters */}
+          <div className="flex items-center gap-4 mb-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Channel</span>
+              <div className="flex gap-1">
+                {CHANNELS.map((ch) => (
+                  <button key={ch} onClick={() => setChannelFilter(ch)}
+                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${channelFilter === ch ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
+                    {ch}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Priority</span>
+              <div className="flex gap-1">
+                {PRIORITY_LEVELS.map((lvl) => (
+                  <button key={lvl} onClick={() => setPriorityFilter(lvl)}
+                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${priorityFilter === lvl ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
+                    {lvl}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {(channelFilter !== 'All' || priorityFilter !== 'All') && (
+              <button onClick={() => { setChannelFilter('All'); setPriorityFilter('All') }}
+                className="text-xs text-gray-400 hover:text-gray-600 underline">
+                Clear
+              </button>
+            )}
           </div>
 
           {showAddFR && (

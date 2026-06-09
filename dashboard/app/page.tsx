@@ -11,9 +11,22 @@ type RadarRow = {
   importance: string
   account_count: number
   accounts: string[]
+  sources: string[]
   affected_acv: number
   weight: number
   status: string
+}
+
+function sourceToChannel(source: string): string {
+  if (source === 'demodesk') return 'Call'
+  if (source === 'nps') return 'NPS'
+  if (source === 'manual') return 'Manual'
+  return 'Slack'
+}
+
+function rowChannels(sources: string[]): string[] {
+  const channels = new Set(sources.map(sourceToChannel))
+  return Array.from(channels)
 }
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -115,6 +128,8 @@ export default function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [search, setSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All')
+  const [channelFilter, setChannelFilter] = useState('All')
+  const [importanceFilter, setImportanceFilter] = useState('All')
   const [sortBy, setSortBy] = useState<'importance' | 'category'>('importance')
 
   // Merge state
@@ -200,11 +215,15 @@ export default function HomePage() {
 
   const IMPORTANCE_ORDER: Record<string, number> = { high: 0, mid: 1, low: 2 }
 
+  const CHANNELS = ['All', 'Call', 'Slack', 'NPS']
+  const IMPORTANCE_LEVELS = ['All', 'High', 'Mid', 'Low']
   const categories = ['All', ...Array.from(new Set(rows.map((r) => r.category ?? 'OTHER'))).sort()]
   const filtered = rows
     .filter((r) => {
       if (search && !r.title.toLowerCase().includes(search.toLowerCase())) return false
       if (categoryFilter !== 'All' && (r.category ?? 'OTHER') !== categoryFilter) return false
+      if (channelFilter !== 'All' && !rowChannels(r.sources ?? []).includes(channelFilter)) return false
+      if (importanceFilter !== 'All' && r.importance.toLowerCase() !== importanceFilter.toLowerCase()) return false
       return true
     })
     .sort((a, b) => {
@@ -280,7 +299,7 @@ export default function HomePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-6">
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
           <input type="text" placeholder="Search pain points…" value={search} onChange={(e) => setSearch(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
           <div className="flex gap-1 flex-wrap flex-1">
@@ -311,6 +330,39 @@ export default function HomePage() {
             </button>
           )}
         </div>
+
+        {/* Second filter row: Channel + Priority */}
+        <div className="flex items-center gap-4 mb-4 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Channel</span>
+            <div className="flex gap-1">
+              {CHANNELS.map((ch) => (
+                <button key={ch} onClick={() => setChannelFilter(ch)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${channelFilter === ch ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
+                  {ch}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Priority</span>
+            <div className="flex gap-1">
+              {IMPORTANCE_LEVELS.map((lvl) => (
+                <button key={lvl} onClick={() => setImportanceFilter(lvl)}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${importanceFilter === lvl ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
+                  {lvl}
+                </button>
+              ))}
+            </div>
+          </div>
+          {(channelFilter !== 'All' || importanceFilter !== 'All') && (
+            <button onClick={() => { setChannelFilter('All'); setImportanceFilter('All') }}
+              className="text-xs text-gray-400 hover:text-gray-600 underline">
+              Clear filters
+            </button>
+          )}
+        </div>
+
         {mergeMode && <p className="text-xs text-gray-400 mb-3">{mergeSelected.length === 0 ? 'Select 2 rows to merge.' : mergeSelected.length === 1 ? 'Select one more row.' : 'Ready — click Merge selected.'}</p>}
 
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

@@ -5,7 +5,7 @@ const IMPORTANCE_SCORE: Record<string, number> = { high: 20, mid: 10, low: 5 }
 
 export async function GET() {
   const [signalsRes, accountsRes, frsRes] = await Promise.all([
-    supabase.from('signals').select('account_name, feature_request, source_id, category, importance').order('account_name'),
+    supabase.from('signals').select('account_name, feature_request, source, source_id, category, importance').order('account_name'),
     supabase.from('accounts').select('name, acv, tier'),
     supabase.from('feature_requests').select('title, status'),
   ])
@@ -28,14 +28,17 @@ export async function GET() {
   const map: Record<string, {
     title: string
     accounts: Set<string>
+    sources: Set<string>
     category: string | null
     importance: string
   }> = {}
 
   for (const sig of signals) {
     const key = sig.feature_request.toLowerCase()
-    if (!map[key]) map[key] = { title: sig.feature_request, accounts: new Set(), category: sig.category ?? null, importance: sig.importance ?? 'mid' }
+    if (!map[key]) map[key] = { title: sig.feature_request, accounts: new Set(), sources: new Set(), category: sig.category ?? null, importance: sig.importance ?? 'mid' }
     map[key].accounts.add(sig.account_name)
+    if (sig.source) map[key].sources.add(sig.source)
+    if (sig.source_id?.includes('nps')) map[key].sources.add('nps')
     if (!map[key].category && sig.category) map[key].category = sig.category
     // Take the highest importance across all signals for this feature
     const current = IMPORTANCE_SCORE[map[key].importance] ?? 10
@@ -60,6 +63,7 @@ export async function GET() {
         importance: item.importance,
         account_count: accountList.length,
         accounts: accountList,
+        sources: Array.from(item.sources),
         affected_acv,
         weight,
         status: statusByTitle[item.title.toLowerCase()] ?? 'pending',
