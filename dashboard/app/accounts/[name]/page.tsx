@@ -35,6 +35,42 @@ function statusColor(s: string) {
   return 'bg-gray-100 text-gray-400'
 }
 
+const SOURCE_OPTIONS = [
+  { value: 'demodesk', label: 'Call',  classes: 'bg-purple-100 text-purple-600' },
+  { value: 'pylon',    label: 'Slack', classes: 'bg-green-100 text-green-600' },
+  { value: 'nps',      label: 'NPS',   classes: 'bg-orange-100 text-orange-600' },
+]
+
+function resolveSource(source: string | null, sourceId?: string | null): string {
+  if (source === 'demodesk') return 'demodesk'
+  if (source === 'nps' || sourceId?.includes('nps')) return 'nps'
+  return 'pylon'
+}
+
+function SrcCell({ source, sourceId, title, accountName, onSave }: {
+  source: string | null; sourceId?: string | null; title: string; accountName: string; onSave: (v: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(() => resolveSource(source, sourceId))
+  useEffect(() => { setVal(resolveSource(source, sourceId)) }, [source, sourceId])
+
+  const opt = SOURCE_OPTIONS.find((o) => o.value === val) ?? SOURCE_OPTIONS[1]
+
+  if (editing) return (
+    <select value={val} autoFocus onBlur={() => setEditing(false)}
+      onChange={(e) => { const v = e.target.value; setVal(v); onSave(v); setEditing(false) }}
+      className="text-xs border border-indigo-300 rounded px-1 py-0.5 focus:outline-none">
+      {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+  return (
+    <button onClick={() => setEditing(true)} title="Click to change source"
+      className={`text-xs px-1.5 py-0.5 rounded font-medium hover:opacity-80 transition-opacity ${opt.classes}`}>
+      {opt.label}
+    </button>
+  )
+}
+
 function sourceBadge(source: string | null, sourceId?: string | null) {
   if (source === 'demodesk') return <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-600">Call</span>
   if (sourceId?.includes('nps')) return <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-600">NPS</span>
@@ -166,6 +202,11 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
     if (field === 'status') {
       const fr = frs.find((f) => f.title === title)
       if (fr?.id) { fetch(`/api/feature-requests/${fr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: value }) }); return }
+    }
+    if (field === 'source') {
+      fetch('/api/signals', { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_name: accountName, feature_request: title, source: value }) })
+      return
     }
     saveMeta(title, field, value)
   }
@@ -364,7 +405,10 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                 {sortedFrs.map((fr, i) => (
                   <tr key={fr.title} className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
                     <td className="px-3 py-2 text-xs text-gray-400">{i + 1}</td>
-                    <td className="px-3 py-2">{sourceBadge(fr.source, fr.source_id)}</td>
+                    <td className="px-3 py-2">
+                      <SrcCell source={fr.source} sourceId={fr.source_id} title={fr.title} accountName={accountName}
+                        onSave={(v) => updateFR(fr.title, 'source', v)} />
+                    </td>
                     <td className="px-3 py-2">
                       <CategoryCell value={fr.category} title={fr.title} frId={fr.id || fr.title}
                         onSave={(v) => updateFR(fr.title, 'category', v)} />

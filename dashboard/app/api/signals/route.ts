@@ -30,3 +30,23 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }
+
+export async function PATCH(req: NextRequest) {
+  const { account_name, feature_request, source } = await req.json()
+  if (!account_name || !feature_request || !source) {
+    return NextResponse.json({ error: 'account_name, feature_request and source required' }, { status: 400 })
+  }
+  const allowed = ['demodesk', 'pylon', 'nps']
+  if (!allowed.includes(source)) {
+    return NextResponse.json({ error: 'invalid source' }, { status: 400 })
+  }
+
+  const { error } = await supabase
+    .from('signals')
+    .update({ source })
+    .eq('account_name', account_name)
+    .eq('feature_request', feature_request)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
