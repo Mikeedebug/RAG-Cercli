@@ -3,11 +3,56 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type FR = { id: string; title: string; status: string; source: string; source_id: string; signal_date: string | null }
+type FR = { id: string; title: string; status: string; source: string; source_id: string; signal_date: string | null; category?: string }
 type InsightCard = { id: string; title: string; body: string; source: string | null; source_id: string | null; signal_date: string | null; status: string }
 type AccountInfo = { name: string; tier: string | null; acv: number | null; pylon_id: string | null }
 
 const PRESET_STATUSES = ['Under Review', 'Planned', 'In Progress', 'Shipped', "Won't Do"]
+
+const CATEGORY_EMOJI: Record<string, string> = {
+  'BULK ACTIONS': '📁', 'PAYROLL': '💸', 'REPORTS': '📋', 'PROFILE': '👤',
+  'PERMISSIONS': '🔑', 'INTEGRATIONS': '🔗', 'EXPENSES': '🧾', 'TIME OFF': '🏝️',
+  'LETTERS': '💌', 'COMPLIANCE': '⚖️', 'NOTIFICATIONS': '🔔', 'PAYMENTS': '💳', 'OTHER': '📌',
+}
+
+function CategoryBadge({ frId, category, title }: { frId: string; category?: string; title: string }) {
+  const [value, setValue] = useState(category ?? '')
+  const [loading, setLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(category ?? '')
+
+  useEffect(() => {
+    if (!category && frId) {
+      setLoading(true)
+      fetch('/api/categorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      }).then((r) => r.json()).then((d) => {
+        if (d.category) { setValue(d.category); setDraft(d.category) }
+      }).finally(() => setLoading(false))
+    }
+  }, [frId, category, title])
+
+  if (loading) return <span className="text-xs text-gray-400 italic">categorising…</span>
+
+  const emoji = CATEGORY_EMOJI[value] ?? '📌'
+
+  if (editing) {
+    return (
+      <select value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => { setValue(draft); setEditing(false) }} autoFocus
+        className="text-xs border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300">
+        {Object.keys(CATEGORY_EMOJI).map((c) => <option key={c} value={c}>{CATEGORY_EMOJI[c]} {c}</option>)}
+      </select>
+    )
+  }
+
+  return (
+    <button onClick={() => setEditing(true)} className="text-xs text-gray-500 hover:text-gray-700 font-medium" title="Click to change category">
+      {value ? `${emoji} ${value}` : '+ category'}
+    </button>
+  )
+}
 
 function statusColor(status: string): string {
   const s = status.toLowerCase().replace(/[^a-z]/g, '')
@@ -272,7 +317,10 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                 <div key={fr.id || fr.title} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 leading-snug">{fr.title}</p>
-                    {fr.signal_date && <p className="text-xs text-gray-400 mt-0.5">{formatDate(fr.signal_date)}</p>}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {fr.signal_date && <span className="text-xs text-gray-400">{formatDate(fr.signal_date)}</span>}
+                      <CategoryBadge frId={fr.id || fr.title} category={fr.category} title={fr.title} />
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     {sourceBadge(fr.source, fr.source_id)}
