@@ -41,12 +41,21 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'invalid source' }, { status: 400 })
   }
 
-  const { error } = await supabase
+  // First fetch existing signals to fix source_id for legacy NPS signals
+  const { data: existing } = await supabase
     .from('signals')
-    .update({ source })
+    .select('id, source_id')
     .eq('account_name', account_name)
     .eq('feature_request', feature_request)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  for (const sig of existing ?? []) {
+    const updates: Record<string, string> = { source }
+    // If changing away from NPS, rename source_id so legacy detection doesn't re-trigger
+    if (source !== 'nps' && sig.source_id?.includes('nps')) {
+      updates.source_id = sig.source_id.replace('nps', source === 'demodesk' ? 'call' : 'slack')
+    }
+    await supabase.from('signals').update(updates).eq('id', sig.id)
+  }
+
   return NextResponse.json({ ok: true })
 }

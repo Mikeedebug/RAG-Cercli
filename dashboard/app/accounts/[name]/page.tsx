@@ -43,7 +43,9 @@ const SOURCE_OPTIONS = [
 
 function resolveSource(source: string | null, sourceId?: string | null): string {
   if (source === 'demodesk') return 'demodesk'
-  if (source === 'nps' || sourceId?.includes('nps')) return 'nps'
+  if (source === 'nps') return 'nps'
+  // legacy: NPS signals stored with source_id containing 'nps' before migration 016
+  if (sourceId?.includes('nps')) return 'nps'
   return 'pylon'
 }
 
@@ -52,13 +54,15 @@ function SrcCell({ source, sourceId, title, accountName, onSave }: {
 }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState(() => resolveSource(source, sourceId))
-  useEffect(() => { setVal(resolveSource(source, sourceId)) }, [source, sourceId])
+  // After save, trust the new value directly — don't re-derive from source prop
+  const [saved, setSaved] = useState(false)
+  useEffect(() => { if (!saved) setVal(resolveSource(source, sourceId)) }, [source, sourceId, saved])
 
   const opt = SOURCE_OPTIONS.find((o) => o.value === val) ?? SOURCE_OPTIONS[1]
 
   if (editing) return (
     <select value={val} autoFocus onBlur={() => setEditing(false)}
-      onChange={(e) => { const v = e.target.value; setVal(v); onSave(v); setEditing(false) }}
+      onChange={(e) => { const v = e.target.value; setVal(v); setSaved(true); onSave(v); setEditing(false) }}
       className="text-xs border border-indigo-300 rounded px-1 py-0.5 focus:outline-none">
       {SOURCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
