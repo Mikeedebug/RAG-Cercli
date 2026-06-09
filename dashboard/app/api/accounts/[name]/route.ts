@@ -56,3 +56,34 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
 
   return NextResponse.json({ account, feature_requests: featureRequests, insight_cards: insightCards })
 }
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ name: string }> }
+) {
+  const { name } = await params
+  const accountName = decodeURIComponent(name)
+
+  const body = await req.json()
+  const { feature_request, note } = body as { feature_request: string; note?: string }
+
+  if (!feature_request) {
+    return NextResponse.json({ error: 'feature_request is required' }, { status: 400 })
+  }
+
+  const { data, error } = await supabase
+    .from('signals')
+    .insert({
+      account_name: accountName,
+      feature_request,
+      verbatim_quote: note ?? null,
+      source: 'manual',
+      source_id: `manual-${crypto.randomUUID()}`,
+      signal_date: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
+}
