@@ -6,7 +6,7 @@ import Link from 'next/link'
 type FR = {
   id: string; title: string; status: string; source: string; source_id: string
   signal_date: string | null; priority: string | null; estimated_release: string | null
-  comments: string | null; category?: string; reporter: string | null; rank: number | null
+  comments: string | null; category?: string; reporter: string | null; weight: number | null
 }
 type InsightCard = { id: string; title: string; body: string; source: string | null; source_id: string | null; signal_date: string | null; status: string }
 type AccountInfo = { name: string; tier: string | null; acv: number | null; pylon_id: string | null }
@@ -115,7 +115,7 @@ function EditCell({ value, placeholder, onSave, multiline }: { value: string | n
     : <input {...shared} ref={ref as React.Ref<HTMLInputElement>} />
 }
 
-function RankCell({ value, onSave }: { value: number | null; onSave: (v: number | null) => void }) {
+function WeightCell({ value, onSave }: { value: number | null; onSave: (v: number | null) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(String(value ?? ''))
   const ref = useRef<HTMLInputElement>(null)
@@ -205,7 +205,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
   const [newFRTitle, setNewFRTitle] = useState('')
   const [newFRNote, setNewFRNote] = useState('')
   const [addingFR, setAddingFR] = useState(false)
-  const [sortBy, setSortBy] = useState<'importance' | 'category' | 'rank'>('rank')
+  const [sortBy, setSortBy] = useState<'importance' | 'category' | 'weight'>('weight')
   const [channelFilter, setChannelFilter] = useState('All')
   const [priorityFilter, setPriorityFilter] = useState('All')
   const [mergeMode, setMergeMode] = useState(false)
@@ -275,7 +275,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
         id: '', title: card.title, status: 'pending', source: card.source ?? 'pylon',
         source_id: card.source_id ?? '', signal_date: card.signal_date,
         priority: null, estimated_release: null, comments: null, category: undefined,
-        reporter: null, rank: null,
+        reporter: null, weight: null,
       }
       setFrs((prev) => [newFR, ...prev])
       fetch('/api/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: card.title }) })
@@ -298,7 +298,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
       body: JSON.stringify({ feature_request: newFRTitle.trim(), note: newFRNote.trim() || undefined }),
     })
     if (res.ok) {
-      const newFR: FR = { id: '', title: newFRTitle.trim(), status: 'pending', source: 'manual', source_id: 'manual', signal_date: new Date().toISOString(), priority: null, estimated_release: null, comments: null, reporter: null, rank: null }
+      const newFR: FR = { id: '', title: newFRTitle.trim(), status: 'pending', source: 'manual', source_id: 'manual', signal_date: new Date().toISOString(), priority: null, estimated_release: null, comments: null, reporter: null, weight: null }
       setFrs((prev) => [newFR, ...prev])
       fetch('/api/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: newFRTitle.trim() }) })
         .then((r) => r.json()).then((d) => {
@@ -377,7 +377,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
       return true
     })
     .sort((a, b) => {
-      if (sortBy === 'rank') return (b.rank ?? 0) - (a.rank ?? 0)
+      if (sortBy === 'weight') return (b.weight ?? 0) - (a.weight ?? 0)
       if (sortBy === 'category') {
         const ca = a.category ?? 'OTHER'; const cb = b.category ?? 'OTHER'
         return ca.localeCompare(cb) || (PRIORITY_ORDER[a.priority ?? ''] ?? 3) - (PRIORITY_ORDER[b.priority ?? ''] ?? 3)
@@ -481,9 +481,9 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               </h2>
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
-                  <button onClick={() => setSortBy('rank')}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'rank' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-                    Rank
+                  <button onClick={() => setSortBy('weight')}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'weight' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                    Weight
                   </button>
                   <button onClick={() => setSortBy('importance')}
                     className={`text-xs font-medium px-2.5 py-1 rounded-md transition-colors ${sortBy === 'importance' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -547,7 +547,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="bg-[#7ab648] text-white">
-                    <th className="text-center px-2 py-3 text-xs font-semibold w-10 whitespace-nowrap">Rank</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold w-10 whitespace-nowrap">Weight</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-20 whitespace-nowrap">Date</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-12 whitespace-nowrap">Src</th>
                     <th className="text-left px-2 py-3 text-xs font-semibold w-28 whitespace-nowrap">Category</th>
@@ -566,7 +566,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                       onDragStart={() => { setDragType('fr'); setDragFRTitle(fr.title) }}
                       className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group cursor-grab active:cursor-grabbing ${i % 2 === 1 ? 'bg-gray-50/40' : ''}`}>
                       <td className="px-2 py-2 text-center">
-                        <RankCell value={fr.rank} onSave={(v) => updateFR(fr.title, 'rank', v)} />
+                        <WeightCell value={fr.weight} onSave={(v) => updateFR(fr.title, 'rank', v)} />
                       </td>
                       <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">
                         <EditCell value={fr.signal_date ? formatDate(fr.signal_date) : null} placeholder="Date…"
