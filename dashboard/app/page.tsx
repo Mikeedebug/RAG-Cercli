@@ -5,6 +5,7 @@ import type { FeatureRequest, InsightCard } from '../lib/supabase'
 import FeatureRequestList from '../components/FeatureRequestList'
 import InsightFeed from '../components/InsightFeed'
 import AccountView from '../components/AccountView'
+import AccountDetailPanel from '../components/AccountDetailPanel'
 import RefreshButton from '../components/RefreshButton'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -12,12 +13,14 @@ type AccountData = {
   account_name: string
   domain?: string
   pylon_id?: string
+  tier?: string
+  acv?: number
   signal_count: number
   pending_insights: number
   total_activity: number
   sources: string[]
   last_activity: string | null
-  top_requests: { id: string; title: string; status: string }[]
+  feature_requests: { id: string; title: string; status: string; source: string; signal_date: string | null }[]
 }
 
 type DashboardData = {
@@ -32,6 +35,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [refreshProgress, setRefreshProgress] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [selectedAccount, setSelectedAccount] = useState<AccountData | null>(null)
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -152,9 +156,15 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
             Account View
           </h2>
-          <AccountView accounts={data?.accounts ?? []} />
+          <AccountView accounts={data?.accounts ?? []} onSelect={setSelectedAccount} />
         </div>
       </main>
+      <AccountDetailPanel
+        account={selectedAccount}
+        insightCards={data?.insight_cards ?? []}
+        onClose={() => setSelectedAccount(null)}
+        onAction={handleInsightAction}
+      />
     </div>
   )
 }

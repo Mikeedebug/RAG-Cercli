@@ -11,7 +11,7 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(50),
     supabase.from('signals').select('*').order('signal_date', { ascending: false }),
-    supabase.from('accounts').select('pylon_id, name, domain'),
+    supabase.from('accounts').select('pylon_id, name, domain, tier, acv'),
     supabase
       .from('refresh_log')
       .select('*')
@@ -31,17 +31,18 @@ export async function GET() {
   }
 
   // Build signal map by account name
-  const signalMap: Record<string, { count: number; sources: Set<string>; last_activity: string | null; feature_requests: string[] }> = {}
+  type SignalEntry = { title: string; source: string; signal_date: string | null }
+  const signalMap: Record<string, { count: number; sources: Set<string>; last_activity: string | null; signals: SignalEntry[] }> = {}
   for (const sig of signals) {
     if (!signalMap[sig.account_name]) {
-      signalMap[sig.account_name] = { count: 0, sources: new Set(), last_activity: null, feature_requests: [] }
+      signalMap[sig.account_name] = { count: 0, sources: new Set(), last_activity: null, signals: [] }
     }
     signalMap[sig.account_name].count++
     signalMap[sig.account_name].sources.add(sig.source)
     if (!signalMap[sig.account_name].last_activity) {
       signalMap[sig.account_name].last_activity = sig.signal_date
     }
-    signalMap[sig.account_name].feature_requests.push(sig.feature_request)
+    signalMap[sig.account_name].signals.push({ title: sig.feature_request, source: sig.source, signal_date: sig.signal_date ?? null })
   }
 
   // Also count pending insight cards per account
@@ -55,31 +56,33 @@ export async function GET() {
 
   // Build account list from canonical accounts
   const accounts = canonicalAccounts.map((acc) => {
-    const sigData = signalMap[acc.name] ?? { count: 0, sources: new Set(), last_activity: null, feature_requests: [] }
+    const sigData = signalMap[acc.name] ?? { count: 0, sources: new Set(), last_activity: null, signals: [] }
     const pendingCount = pendingMap[acc.name] ?? 0
     const totalActivity = sigData.count + pendingCount
 
-    // Deduplicate FRs for this account and attach id + status
+    // Deduplicate FRs for this account and attach id + status + source + signal_date
     const seen = new Set<string>()
-    const accountFRs: { id: string; title: string; status: string }[] = []
-    for (const title of sigData.feature_requests) {
-      const key = title.toLowerCase()
+    const accountFRs: { id: string; title: string; status: string; source: string; signal_date: string | null }[] = []
+    for (const sig of sigData.signals) {
+      const key = sig.title.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
       const fr = frByTitle[key]
-      accountFRs.push({ id: fr?.id ?? '', title, status: fr?.status ?? 'under_review' })
+      accountFRs.push({ id: fr?.id ?? '', title: sig.title, status: fr?.status ?? 'under_review', source: sig.source, signal_date: sig.signal_date })
     }
 
     return {
       account_name: acc.name,
       domain: acc.domain,
       pylon_id: acc.pylon_id,
+      tier: acc.tier ?? undefined,
+      acv: acc.acv ?? undefined,
       signal_count: sigData.count,
       pending_insights: pendingCount,
       total_activity: totalActivity,
       sources: Array.from(sigData.sources),
       last_activity: sigData.last_activity,
-      top_requests: accountFRs,
+      feature_requests: accountFRs,
     }
   }).sort((a, b) => b.total_activity - a.total_activity)
 

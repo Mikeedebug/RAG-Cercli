@@ -3,34 +3,25 @@
 import { useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 
-type FR = { id: string; title: string; status: string }
+type FR = { id: string; title: string; status: string; source: string; signal_date: string | null }
 
 type AccountData = {
   account_name: string
   domain?: string
   pylon_id?: string
+  tier?: string
+  acv?: number
   signal_count: number
   pending_insights: number
   total_activity: number
   sources: string[]
   last_activity: string | null
-  top_requests: FR[]
+  feature_requests: FR[]
 }
 
 type Props = {
   accounts: AccountData[]
-}
-
-const STATUS_OPTIONS = [
-  { value: 'under_review', label: 'Under Review', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'planned', label: 'Planned', color: 'bg-blue-100 text-blue-700' },
-  { value: 'in_progress', label: 'In Progress', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'shipped', label: 'Shipped', color: 'bg-green-100 text-green-700' },
-  { value: 'wont_do', label: "Won't Do", color: 'bg-gray-100 text-gray-500' },
-]
-
-function statusStyle(value: string) {
-  return STATUS_OPTIONS.find((s) => s.value === value) ?? STATUS_OPTIONS[0]
+  onSelect: (account: AccountData) => void
 }
 
 const AVATAR_COLORS = [
@@ -67,26 +58,16 @@ function getStatus(account: AccountData): { label: string; color: string; border
   return { label: 'New', color: 'text-blue-700 bg-blue-100', border: 'border-l-blue-400' }
 }
 
-function AccountCard({ account }: { account: AccountData }) {
-  const [frs, setFRs] = useState<FR[]>(account.top_requests)
-  const [expanded, setExpanded] = useState(false)
+function AccountCard({ account, onSelect }: { account: AccountData; onSelect: (a: AccountData) => void }) {
   const status = getStatus(account)
   const color = avatarColor(account.account_name)
-  const visible = expanded ? frs : frs.slice(0, 3)
-
-  const updateStatus = async (fr: FR, newStatus: string) => {
-    setFRs((prev) => prev.map((f) => f.id === fr.id ? { ...f, status: newStatus } : f))
-    if (fr.id) {
-      await fetch(`/api/feature-requests/${fr.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
-      })
-    }
-  }
+  const frs = account.feature_requests
 
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 border-l-4 ${status.border} p-4 hover:shadow-sm transition-shadow`}>
+    <div
+      className={`bg-white rounded-xl border border-gray-200 border-l-4 ${status.border} p-4 hover:shadow-sm transition-shadow cursor-pointer`}
+      onClick={() => onSelect(account)}
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${color}`}>
@@ -97,7 +78,7 @@ function AccountCard({ account }: { account: AccountData }) {
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${status.color}`}>{status.label}</span>
       </div>
 
-      <p className="text-xs text-gray-500 mb-3">
+      <p className="text-xs text-gray-500 mb-2">
         {account.signal_count > 0 && `${account.signal_count} signal${account.signal_count !== 1 ? 's' : ''}`}
         {account.signal_count > 0 && account.pending_insights > 0 && ' · '}
         {account.pending_insights > 0 && `${account.pending_insights} pending`}
@@ -105,40 +86,16 @@ function AccountCard({ account }: { account: AccountData }) {
         {account.last_activity && ` · ${formatDistanceToNow(new Date(account.last_activity), { addSuffix: true })}`}
       </p>
 
-      {frs.length > 0 && (
-        <div className="space-y-1.5">
-          {visible.map((fr) => {
-            const s = statusStyle(fr.status)
-            return (
-              <div key={fr.id || fr.title} className="flex items-start gap-2">
-                <span className="text-xs text-gray-700 flex-1 leading-snug pt-0.5">{fr.title}</span>
-                <select
-                  value={fr.status}
-                  onChange={(e) => updateStatus(fr, e.target.value)}
-                  className={`text-xs rounded px-1.5 py-0.5 border-0 font-medium cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-300 ${s.color}`}
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            )
-          })}
-          {frs.length > 3 && (
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="text-xs text-indigo-500 hover:text-indigo-700 mt-1"
-            >
-              {expanded ? 'Show less' : `+${frs.length - 3} more`}
-            </button>
-          )}
-        </div>
-      )}
+      <p className="text-xs text-gray-400">
+        {frs.length > 0
+          ? `${frs.length} feature request${frs.length !== 1 ? 's' : ''}`
+          : 'No feature requests'}
+      </p>
     </div>
   )
 }
 
-export default function AccountView({ accounts }: Props) {
+export default function AccountView({ accounts, onSelect }: Props) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'no-activity'>('all')
 
@@ -178,7 +135,7 @@ export default function AccountView({ accounts }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map((account) => (
-          <AccountCard key={account.account_name} account={account} />
+          <AccountCard key={account.account_name} account={account} onSelect={onSelect} />
         ))}
       </div>
     </div>
