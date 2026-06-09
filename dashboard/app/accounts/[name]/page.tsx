@@ -388,8 +388,72 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
 
       <div className="max-w-[1400px] mx-auto px-6 py-6 flex gap-5">
 
-        {/* LEFT: Feature Requests + Sentiment */}
+        {/* LEFT: Sentiment + Feature Requests */}
         <div className="flex-1 min-w-0 flex flex-col gap-5">
+
+          {/* Sentiment Board */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sentiment</h2>
+              <button onClick={() => setShowAddSentiment(!showAddSentiment)}
+                className="text-xs font-medium px-3 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 transition-colors">
+                {showAddSentiment ? 'Cancel' : '+ Add'}
+              </button>
+            </div>
+
+            {showAddSentiment && (
+              <div className="bg-white rounded-xl border border-indigo-200 p-4 mb-3 flex gap-3 items-start">
+                <select value={newSentimentType} onChange={(e) => setNewSentimentType(e.target.value as 'positive' | 'neutral' | 'negative')}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 flex-shrink-0">
+                  <option value="positive">😊 Positive</option>
+                  <option value="neutral">😐 Neutral</option>
+                  <option value="negative">😞 Negative</option>
+                </select>
+                <input type="text" placeholder="Add a sentiment note…" value={newSentimentText}
+                  onChange={(e) => setNewSentimentText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') addSentimentItem() }}
+                  autoFocus
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                <button onClick={addSentimentItem} disabled={!newSentimentText.trim()}
+                  className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex-shrink-0">
+                  Add
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-3">
+              {SENTIMENT_COLS.map((col) => {
+                const colItems = sentimentItems.filter((i) => i.sentiment === col.key).sort((a, b) => a.position - b.position)
+                const isOver = dragOver === col.key
+                return (
+                  <div key={col.key}
+                    className={`rounded-xl border ${col.border} min-h-20 p-3 transition-colors ${isOver ? col.dragBg : col.bg}`}
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(col.key) }}
+                    onDragLeave={() => setDragOver(null)}
+                    onDrop={(e) => handleSentimentDrop(e, col.key)}>
+                    <h3 className={`text-xs font-semibold mb-2 ${col.head}`}>{col.label} {colItems.length > 0 && <span className="font-normal opacity-60">({colItems.length})</span>}</h3>
+                    <div className="space-y-2">
+                      {colItems.map((item) => (
+                        <div key={item.id}
+                          draggable
+                          onDragStart={() => setDragId(item.id)}
+                          className="bg-white rounded-lg px-3 py-2 text-xs text-gray-700 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing flex items-start gap-2 group/item">
+                          <span className="flex-1 leading-relaxed">{item.text}</span>
+                          <button onClick={() => deleteSentimentItem(item.id)}
+                            className="opacity-0 group-hover/item:opacity-100 text-gray-300 hover:text-red-500 transition-all flex-shrink-0 text-sm leading-none mt-0.5">
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                      {colItems.length === 0 && (
+                        <p className="text-xs text-gray-300 italic text-center py-2">Drop here</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Feature Requests Table */}
           <div>
@@ -462,18 +526,18 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-[#7ab648] text-white">
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-7">#</th>
-                    <th className="text-center px-3 py-3 text-xs font-semibold w-12">Rank</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-20">Date</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-10">Src</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-32">Category</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold">Pain Point</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-24">Brought by</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-24">Importance</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-28">Status</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-20">Release</th>
-                    <th className="text-left px-3 py-3 text-xs font-semibold w-40">Comments</th>
-                    <th className="w-7" />
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-6">#</th>
+                    <th className="text-center px-2 py-3 text-xs font-semibold w-12">Rank</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Date</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-12">Src</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-32">Category</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold">Pain Point</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Brought by</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-24 whitespace-nowrap">Importance</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-28">Status</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-16 whitespace-nowrap">Release</th>
+                    <th className="text-left px-2 py-3 text-xs font-semibold w-36">Comments</th>
+                    <th className="w-6" />
                   </tr>
                 </thead>
                 <tbody>
@@ -534,69 +598,6 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
             </div>
           </div>
 
-          {/* Sentiment Board */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Sentiment</h2>
-              <button onClick={() => setShowAddSentiment(!showAddSentiment)}
-                className="text-xs font-medium px-3 py-1 rounded-lg bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 transition-colors">
-                {showAddSentiment ? 'Cancel' : '+ Add'}
-              </button>
-            </div>
-
-            {showAddSentiment && (
-              <div className="bg-white rounded-xl border border-indigo-200 p-4 mb-3 flex gap-3 items-start">
-                <select value={newSentimentType} onChange={(e) => setNewSentimentType(e.target.value as 'positive' | 'neutral' | 'negative')}
-                  className="text-xs border border-gray-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300 flex-shrink-0">
-                  <option value="positive">😊 Positive</option>
-                  <option value="neutral">😐 Neutral</option>
-                  <option value="negative">😞 Negative</option>
-                </select>
-                <input type="text" placeholder="Add a sentiment note…" value={newSentimentText}
-                  onChange={(e) => setNewSentimentText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') addSentimentItem() }}
-                  autoFocus
-                  className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                <button onClick={addSentimentItem} disabled={!newSentimentText.trim()}
-                  className="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg disabled:opacity-50 flex-shrink-0">
-                  Add
-                </button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              {SENTIMENT_COLS.map((col) => {
-                const colItems = sentimentItems.filter((i) => i.sentiment === col.key).sort((a, b) => a.position - b.position)
-                const isOver = dragOver === col.key
-                return (
-                  <div key={col.key}
-                    className={`rounded-xl border ${col.border} min-h-20 p-3 transition-colors ${isOver ? col.dragBg : col.bg}`}
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(col.key) }}
-                    onDragLeave={() => setDragOver(null)}
-                    onDrop={(e) => handleSentimentDrop(e, col.key)}>
-                    <h3 className={`text-xs font-semibold mb-2 ${col.head}`}>{col.label} {colItems.length > 0 && <span className="font-normal opacity-60">({colItems.length})</span>}</h3>
-                    <div className="space-y-2">
-                      {colItems.map((item) => (
-                        <div key={item.id}
-                          draggable
-                          onDragStart={() => setDragId(item.id)}
-                          className="bg-white rounded-lg px-3 py-2 text-xs text-gray-700 shadow-sm border border-gray-100 cursor-grab active:cursor-grabbing flex items-start gap-2 group/item">
-                          <span className="flex-1 leading-relaxed">{item.text}</span>
-                          <button onClick={() => deleteSentimentItem(item.id)}
-                            className="opacity-0 group-hover/item:opacity-100 text-gray-300 hover:text-red-500 transition-all flex-shrink-0 text-sm leading-none mt-0.5">
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                      {colItems.length === 0 && (
-                        <p className="text-xs text-gray-300 italic text-center py-2">Drop here</p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
         </div>
 
         {/* RIGHT: Insights Sidebar */}
