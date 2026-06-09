@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
-type FR = { id: string; title: string; status: string; source: string; signal_date: string | null }
-type InsightCard = { id: string; title: string; body: string; source: string | null; signal_date: string | null; status: string }
+type FR = { id: string; title: string; status: string; source: string; source_id: string; signal_date: string | null }
+type InsightCard = { id: string; title: string; body: string; source: string | null; source_id: string | null; signal_date: string | null; status: string }
 type AccountInfo = { name: string; tier: string | null; acv: number | null; pylon_id: string | null }
 
 const PRESET_STATUSES = ['Under Review', 'Planned', 'In Progress', 'Shipped', "Won't Do"]
@@ -78,9 +78,12 @@ function StatusEditor({ frId, status, onChange }: { frId: string; status: string
   )
 }
 
-function sourceBadge(source: string | null) {
+function sourceBadge(source: string | null, sourceId?: string) {
   if (source === 'demodesk') {
     return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Meeting call</span>
+  }
+  if (sourceId?.includes('nps')) {
+    return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">NPS</span>
   }
   return <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">Slack</span>
 }
@@ -180,7 +183,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                   <div className="flex items-start justify-between gap-4 mb-2">
                     <h3 className="font-semibold text-gray-900 text-sm leading-snug">{card.title}</h3>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      {sourceBadge(card.source)}
+                      {sourceBadge(card.source, card.source_id)}
                       {card.signal_date && (
                         <span className="text-xs text-gray-400">{formatDate(card.signal_date)}</span>
                       )}
@@ -229,7 +232,7 @@ export default function AccountPage({ params }: { params: Promise<{ name: string
                     )}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
-                    {sourceBadge(fr.source)}
+                    {sourceBadge(fr.source, fr.source_id)}
                     {fr.id ? (
                       <StatusEditor frId={fr.id} status={fr.status} onChange={handleStatusChange} />
                     ) : (

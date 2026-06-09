@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
 
   // Deduplicate signals by feature_request title
   const seen = new Set<string>()
-  const featureRequests: { id: string; title: string; status: string; source: string; signal_date: string | null }[] = []
+  const featureRequests: { id: string; title: string; status: string; source: string; source_id: string; signal_date: string | null }[] = []
   for (const sig of signals) {
     const key = sig.feature_request.toLowerCase()
     if (seen.has(key)) continue
@@ -32,8 +32,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     featureRequests.push({
       id: fr?.id ?? '',
       title: sig.feature_request,
-      status: fr?.status ?? 'under_review',
+      status: fr?.status ?? 'pending',
       source: sig.source,
+      source_id: sig.source_id ?? '',
       signal_date: sig.signal_date ?? null,
     })
   }
@@ -48,6 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     title: c.title,
     body: c.body,
     source: c.source ?? null,
+    source_id: c.source_id ?? null,
     signal_date: c.signal_date ?? null,
     status: c.status,
   }))
