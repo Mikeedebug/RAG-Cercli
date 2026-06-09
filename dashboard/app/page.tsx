@@ -5,7 +5,6 @@ import type { FeatureRequest, InsightCard } from '../lib/supabase'
 import FeatureRequestList from '../components/FeatureRequestList'
 import InsightFeed from '../components/InsightFeed'
 import AccountView from '../components/AccountView'
-import AccountDetailPanel from '../components/AccountDetailPanel'
 import RefreshButton from '../components/RefreshButton'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -35,7 +34,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [refreshProgress, setRefreshProgress] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [selectedAccount, setSelectedAccount] = useState<AccountData | null>(null)
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -156,15 +154,9 @@ export default function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">
             Account View
           </h2>
-          <AccountView accounts={data?.accounts ?? []} onSelect={setSelectedAccount} />
+          <AccountView accounts={data?.accounts ?? []} />
         </div>
       </main>
-      <AccountDetailPanel
-        account={selectedAccount}
-        insightCards={data?.insight_cards ?? []}
-        onClose={() => setSelectedAccount(null)}
-        onAction={handleInsightAction}
-      />
     </div>
   )
 }

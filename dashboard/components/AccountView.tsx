@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 
 type FR = { id: string; title: string; status: string; source: string; signal_date: string | null }
@@ -21,7 +22,6 @@ type AccountData = {
 
 type Props = {
   accounts: AccountData[]
-  onSelect: (account: AccountData) => void
 }
 
 const AVATAR_COLORS = [
@@ -58,7 +58,8 @@ function getStatus(account: AccountData): { label: string; color: string; border
   return { label: 'New', color: 'text-blue-700 bg-blue-100', border: 'border-l-blue-400' }
 }
 
-function AccountCard({ account, onSelect }: { account: AccountData; onSelect: (a: AccountData) => void }) {
+function AccountCard({ account }: { account: AccountData }) {
+  const router = useRouter()
   const status = getStatus(account)
   const color = avatarColor(account.account_name)
   const frs = account.feature_requests
@@ -66,7 +67,7 @@ function AccountCard({ account, onSelect }: { account: AccountData; onSelect: (a
   return (
     <div
       className={`bg-white rounded-xl border border-gray-200 border-l-4 ${status.border} p-4 hover:shadow-sm transition-shadow cursor-pointer`}
-      onClick={() => onSelect(account)}
+      onClick={() => router.push('/accounts/' + encodeURIComponent(account.account_name))}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -95,7 +96,7 @@ function AccountCard({ account, onSelect }: { account: AccountData; onSelect: (a
   )
 }
 
-export default function AccountView({ accounts, onSelect }: Props) {
+export default function AccountView({ accounts }: Props) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'no-activity'>('all')
 
@@ -135,7 +136,7 @@ export default function AccountView({ accounts, onSelect }: Props) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtered.map((account) => (
-          <AccountCard key={account.account_name} account={account} onSelect={onSelect} />
+          <AccountCard key={account.account_name} account={account} />
         ))}
       </div>
     </div>
