@@ -9,16 +9,73 @@ type AccountData = {
   feature_requests: { id: string; title: string; status: string; source: string; signal_date: string | null }[]
 }
 
+type SortKey = 'account_name' | 'tier' | 'acv' | 'signal_count' | 'pending_insights' | 'last_activity'
+type SortDir = 'asc' | 'desc'
+
+const TIER_ORDER: Record<string, number> = { A: 0, B: 1, C: 2 }
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <span className={`ml-1 inline-block text-[10px] ${active ? 'text-indigo-600' : 'text-gray-300'}`}>
+      {active ? (dir === 'asc' ? '▲' : '▼') : '⇅'}
+    </span>
+  )
+}
+
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<AccountData[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<SortKey>('signal_count')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
 
   useEffect(() => {
     fetch('/api/dashboard').then((r) => r.json()).then((d) => setAccounts(d.accounts ?? [])).finally(() => setLoading(false))
   }, [])
 
-  const filtered = accounts.filter((a) => !search || a.account_name.toLowerCase().includes(search.toLowerCase()))
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      // Sensible default direction per column
+      setSortDir(key === 'account_name' ? 'asc' : 'desc')
+    }
+  }
+
+  const filtered = accounts
+    .filter((a) => !search || a.account_name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'account_name':
+          cmp = a.account_name.localeCompare(b.account_name)
+          break
+        case 'tier':
+          cmp = (TIER_ORDER[a.tier ?? ''] ?? 9) - (TIER_ORDER[b.tier ?? ''] ?? 9)
+          break
+        case 'acv':
+          cmp = (a.acv ?? 0) - (b.acv ?? 0)
+          break
+        case 'signal_count':
+          cmp = a.signal_count - b.signal_count
+          break
+        case 'pending_insights':
+          cmp = a.pending_insights - b.pending_insights
+          break
+        case 'last_activity':
+          cmp = (a.last_activity ?? '').localeCompare(b.last_activity ?? '')
+          break
+      }
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+  function thClass(key: SortKey, align: 'left' | 'right' | 'center' = 'left') {
+    const base = `px-4 py-3 text-xs font-semibold cursor-pointer select-none hover:text-indigo-600 transition-colors`
+    const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+    const active = sortKey === key ? 'text-indigo-600' : 'text-gray-500'
+    return `${base} ${textAlign} ${active}`
+  }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin h-8 w-8 border-2 border-indigo-600 border-t-transparent rounded-full" /></div>
 
@@ -40,12 +97,24 @@ export default function AccountsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Account</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 w-20">Tier</th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 w-24">ACV</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 w-20">Signals</th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 w-20">Pending</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 w-32">Last activity</th>
+                <th className={thClass('account_name')} onClick={() => handleSort('account_name')}>
+                  Account <SortIcon active={sortKey === 'account_name'} dir={sortDir} />
+                </th>
+                <th className={`${thClass('tier')} w-20`} onClick={() => handleSort('tier')}>
+                  Tier <SortIcon active={sortKey === 'tier'} dir={sortDir} />
+                </th>
+                <th className={`${thClass('acv', 'right')} w-28`} onClick={() => handleSort('acv')}>
+                  ACV <SortIcon active={sortKey === 'acv'} dir={sortDir} />
+                </th>
+                <th className={`${thClass('signal_count', 'center')} w-20`} onClick={() => handleSort('signal_count')}>
+                  Signals <SortIcon active={sortKey === 'signal_count'} dir={sortDir} />
+                </th>
+                <th className={`${thClass('pending_insights', 'center')} w-20`} onClick={() => handleSort('pending_insights')}>
+                  Pending <SortIcon active={sortKey === 'pending_insights'} dir={sortDir} />
+                </th>
+                <th className={`${thClass('last_activity')} w-36`} onClick={() => handleSort('last_activity')}>
+                  Last activity <SortIcon active={sortKey === 'last_activity'} dir={sortDir} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -53,7 +122,11 @@ export default function AccountsPage() {
                 <tr key={a.account_name} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => window.location.href = `/accounts/${encodeURIComponent(a.account_name)}`}>
                   <td className="px-4 py-3 font-medium text-gray-900">{a.account_name}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500">{a.tier ?? '—'}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {a.tier
+                      ? <span className="font-semibold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{a.tier}</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
                   <td className="px-4 py-3 text-right text-sm text-gray-700">{a.acv ? `$${a.acv.toLocaleString()}` : '—'}</td>
                   <td className="px-4 py-3 text-center text-sm text-gray-700">{a.signal_count || '—'}</td>
                   <td className="px-4 py-3 text-center">
@@ -64,6 +137,9 @@ export default function AccountsPage() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">No accounts found</td></tr>
+              )}
             </tbody>
           </table>
         </div>
