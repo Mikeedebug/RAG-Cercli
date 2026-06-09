@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const ALLOWED_EMAILS = ['miquel@cercli.com', 'thomas@cercli.com']
-const PUBLIC_PATHS = ['/login', '/api/auth/login', '/customer/']
+const PUBLIC_PATHS = ['/login', '/api/auth/login']
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
