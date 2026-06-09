@@ -43,7 +43,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
 
   const acc = accountRes.data
   const tier = acc?.tier ?? null
-  const tierScore = tier === 'A' ? 5 : tier === 'B' ? 3 : 1
+  const tierScore = tier === 'A' ? 4 : tier === 'B' ? 3 : 1
 
   const now = new Date()
   const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
@@ -58,9 +58,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ nam
     let rank = meta.rank ?? null
     if (rank === null) {
       const crossCount = crossCountByFR[key] ?? 1
-      const crossScore = crossCount > 1 ? 3 : 0
+      const crossScore = crossCount > 1 ? 2 : 0
       const recencyScore = signalDate && new Date(signalDate) > monthAgo ? 2 : 1
-      rank = Math.min(tierScore + crossScore + recencyScore, 10)
+      const priority = meta.priority ?? null
+      const priorityScore = priority === 'High' ? 2 : priority === 'Medium' ? 1 : 0
+      rank = Math.min(tierScore + crossScore + recencyScore + priorityScore, 10)
     }
 
     return {
