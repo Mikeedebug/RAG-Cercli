@@ -26,3 +26,10 @@ click>=8.1.7
 # Async support
 aiohttp>=3.9.3
 asyncio>=3.4.3
+
+# Onboarding agent
+anthropic>=0.40.0
+fastapi>=0.110.0
+uvicorn>=0.29.0
+playwright>=1.44.0
+pytest>=8.0.0
